@@ -1,0 +1,4729 @@
+{
+  "tool": "ese",
+  "commands": [
+    {
+      "name": "completions",
+      "category": "diagnostic",
+      "data_type": "any",
+      "input_formats": [],
+      "output_formats": [],
+      "parameters": [
+        {
+          "name": "shell",
+          "type": "string",
+          "required": true,
+          "default": null
+        }
+      ]
+    },
+    {
+      "name": "convert",
+      "category": "conversion",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "gdb",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "gdb",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output-format",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--layer",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--list-layers",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output-crs",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "convert raster-format",
+      "category": "conversion",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--to",
+          "type": "string",
+          "required": false,
+          "default": "gtiff"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "convert raster-to-vector",
+      "category": "conversion",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--band",
+          "type": "number",
+          "required": false,
+          "default": 1
+        },
+        {
+          "name": "--mask-nodata",
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "convert vector-to-raster",
+      "category": "conversion",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--field",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--cell-size",
+          "type": "number",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "describe",
+      "category": "diagnostic",
+      "data_type": "any",
+      "input_formats": [],
+      "output_formats": [],
+      "parameters": [
+        {
+          "name": "command_name",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--all",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "ese"
+        }
+      ]
+    },
+    {
+      "name": "doctor",
+      "category": "diagnostic",
+      "data_type": "any",
+      "input_formats": [],
+      "output_formats": [],
+      "parameters": [
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--reap",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro aspect",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--zfactor",
+          "type": "number",
+          "required": false,
+          "default": 1.0
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro basins",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--esri",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro breach",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--max-depth",
+          "type": "number",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--max-length",
+          "type": "number",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--fill-pits",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro clean-dem",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--filter-size",
+          "type": "number",
+          "required": false,
+          "default": 51
+        },
+        {
+          "name": "--slope-threshold",
+          "type": "number",
+          "required": false,
+          "default": 40.0
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro curvature",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--type",
+          "type": "string",
+          "required": false,
+          "default": "total"
+        },
+        {
+          "name": "--log",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--zfactor",
+          "type": "number",
+          "required": false,
+          "default": 1.0
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro dev",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--filterx",
+          "type": "number",
+          "required": false,
+          "default": 11
+        },
+        {
+          "name": "--filtery",
+          "type": "number",
+          "required": false,
+          "default": 11
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro distance-to-outlet",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--streams",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro elevation-above-stream",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--dem",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--streams",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro extract-valleys",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--variant",
+          "type": "string",
+          "required": false,
+          "default": "lq"
+        },
+        {
+          "name": "--line-thin",
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro fill",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--method",
+          "type": "string",
+          "required": false,
+          "default": "wang-liu"
+        },
+        {
+          "name": "--fix-flats",
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "--flat-increment",
+          "type": "number",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro fill-sinks",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro flow",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--out-type",
+          "type": "string",
+          "required": false,
+          "default": "cells"
+        },
+        {
+          "name": "--log",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--clip",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--keep-intermediates",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro flow-accum",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--method",
+          "type": "string",
+          "required": false,
+          "default": "d8"
+        },
+        {
+          "name": "--out-type",
+          "type": "string",
+          "required": false,
+          "default": "cells"
+        },
+        {
+          "name": "--log",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--clip",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--pntr",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro flow-dir",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--method",
+          "type": "string",
+          "required": false,
+          "default": "d8"
+        },
+        {
+          "name": "--esri",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro flowpath",
+      "category": "hydro",
+      "data_type": "vector",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "geojson",
+        "shp",
+        "gpkg",
+        "fgb",
+        "parquet",
+        "geoparquet"
+      ],
+      "parameters": [
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--seeds",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--subbasins",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro hillshade",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--azimuth",
+          "type": "number",
+          "required": false,
+          "default": 315.0
+        },
+        {
+          "name": "--altitude",
+          "type": "number",
+          "required": false,
+          "default": 30.0
+        },
+        {
+          "name": "--zfactor",
+          "type": "number",
+          "required": false,
+          "default": 1.0
+        },
+        {
+          "name": "--multi",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro isobasins",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--size",
+          "type": "number",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro landform",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro pour-snap",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "shp",
+        "geojson",
+        "gpkg"
+      ],
+      "parameters": [
+        {
+          "name": "--pour-points",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--flow-accum",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--snap-dist",
+          "type": "number",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro roughness",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--min-scale",
+          "type": "number",
+          "required": false,
+          "default": 1
+        },
+        {
+          "name": "--max-scale",
+          "type": "number",
+          "required": false,
+          "default": 100
+        },
+        {
+          "name": "--step",
+          "type": "number",
+          "required": false,
+          "default": 1
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output-scale",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro sink",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--zero-background",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro slope",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--units",
+          "type": "string",
+          "required": false,
+          "default": "degrees"
+        },
+        {
+          "name": "--zfactor",
+          "type": "number",
+          "required": false,
+          "default": 1.0
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro stream-length",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--link-id",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro stream-links",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--streams",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro stream-order",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--streams",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--scheme",
+          "type": "string",
+          "required": false,
+          "default": "strahler"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro stream-power",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--sca",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--slope",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro stream-slope",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--link-id",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--dem",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro streams",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--threshold",
+          "type": "number",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--zero-background",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro streams-vector",
+      "category": "hydro",
+      "data_type": "vector",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "geojson",
+        "shp",
+        "gpkg",
+        "fgb",
+        "parquet",
+        "geoparquet"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro subbasins",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--streams",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--esri",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro tpi",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--filterx",
+          "type": "number",
+          "required": false,
+          "default": 11
+        },
+        {
+          "name": "--filtery",
+          "type": "number",
+          "required": false,
+          "default": 11
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro tri",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro twi",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--sca",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--slope",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro viewshed",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--stations",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--radius",
+          "type": "number",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro visibility",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--radius",
+          "type": "number",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "hydro watershed",
+      "category": "hydro",
+      "data_type": "raster",
+      "input_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "output_formats": [
+        "gtiff",
+        "cog",
+        "ascii",
+        "tif"
+      ],
+      "parameters": [
+        {
+          "name": "--d8-pntr",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--pour-points",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--esri",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "info",
+      "category": "diagnostic",
+      "data_type": "any",
+      "input_formats": [],
+      "output_formats": [],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "pipe",
+      "category": "pipe",
+      "data_type": "any",
+      "input_formats": [],
+      "output_formats": [],
+      "parameters": []
+    },
+    {
+      "name": "pointcloud boundary",
+      "category": "pointcloud",
+      "data_type": "pointcloud",
+      "input_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "output_formats": [
+        "geojson"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "pointcloud density",
+      "category": "pointcloud",
+      "data_type": "pointcloud",
+      "input_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "output_formats": [
+        "gtiff"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "pointcloud filter",
+      "category": "pointcloud",
+      "data_type": "pointcloud",
+      "input_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "output_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--where",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "pointcloud ground",
+      "category": "pointcloud",
+      "data_type": "pointcloud",
+      "input_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "output_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--method",
+          "type": "string",
+          "required": false,
+          "default": "pmf"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "pointcloud info",
+      "category": "pointcloud",
+      "data_type": "pointcloud",
+      "input_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "output_formats": [
+        "json"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "pointcloud merge",
+      "category": "pointcloud",
+      "data_type": "pointcloud",
+      "input_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "output_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "parameters": [
+        {
+          "name": "inputs",
+          "type": "array",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "pointcloud thin",
+      "category": "pointcloud",
+      "data_type": "pointcloud",
+      "input_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "output_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--step",
+          "type": "number",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "pointcloud translate",
+      "category": "pointcloud",
+      "data_type": "pointcloud",
+      "input_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "output_formats": [
+        "laz",
+        "las",
+        "ply"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "proj distance",
+      "category": "proj",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--to",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "proj geodesic",
+      "category": "proj",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "proj info",
+      "category": "proj",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "proj list",
+      "category": "proj",
+      "data_type": "metadata",
+      "input_formats": [],
+      "output_formats": [],
+      "parameters": [
+        {
+          "name": "--search",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "proj transform",
+      "category": "proj",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--to",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster bridge polygonize",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--band",
+          "type": "number",
+          "required": false,
+          "default": 1
+        },
+        {
+          "name": "--mask",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster bridge rasterize",
+      "category": "raster",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "gpkg",
+        "shp"
+      ],
+      "output_formats": [
+        "geotiff"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--field",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--cell-size",
+          "type": "number",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--bounds",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output-crs",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--force",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster bridge sieve",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "geotiff"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--min-size",
+          "type": "number",
+          "required": false,
+          "default": 2
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster calc",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "parameters": [
+        {
+          "name": "expression",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--input",
+          "type": "array",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "inputs",
+          "type": "array",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster clip",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--bands",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster fillnodata",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--max-distance",
+          "type": "number",
+          "required": false,
+          "default": 100
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster info",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster merge",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "parameters": [
+        {
+          "name": "inputs",
+          "type": "array",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster nodata-mask",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--fill",
+          "type": "number",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster reclassify",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--ranges",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster reproject",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--to",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "raster stats",
+      "category": "raster",
+      "data_type": "raster",
+      "input_formats": [
+        "geotiff",
+        "cog"
+      ],
+      "output_formats": [
+        "json"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--band",
+          "type": "number",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "tee",
+      "category": "pipe",
+      "data_type": "any",
+      "input_formats": [],
+      "output_formats": [],
+      "parameters": [
+        {
+          "name": "sinks",
+          "type": "array",
+          "required": true,
+          "default": null
+        }
+      ]
+    },
+    {
+      "name": "vector area",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--geodesic",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector buffer",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--distance",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output-crs",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector centroid",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector clip",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector convexhull",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector difference",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--keep-attrs",
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "--suffix",
+          "type": "string",
+          "required": false,
+          "default": "_left,_right"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector dissolve",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector distance",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--to",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector envelope",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector erase",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--keep-attrs",
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "--suffix",
+          "type": "string",
+          "required": false,
+          "default": "_left,_right"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector explode",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector identity",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--keep-attrs",
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "--suffix",
+          "type": "string",
+          "required": false,
+          "default": "_left,_right"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector interpolate",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--distance",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector intersect",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--keep-attrs",
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "--suffix",
+          "type": "string",
+          "required": false,
+          "default": "_left,_right"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector join",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--with",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--how",
+          "type": "string",
+          "required": false,
+          "default": "inner"
+        },
+        {
+          "name": "--predicate",
+          "type": "string",
+          "required": false,
+          "default": "intersects"
+        },
+        {
+          "name": "--suffix",
+          "type": "string",
+          "required": false,
+          "default": "_left/_right"
+        },
+        {
+          "name": "--keep-attrs",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector length",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--geodesic",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector minrect",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector nearest",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--with",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--max-distance",
+          "type": "number",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--suffix",
+          "type": "string",
+          "required": false,
+          "default": "_left/_right"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector repair",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--method",
+          "type": "string",
+          "required": false,
+          "default": "make_valid"
+        },
+        {
+          "name": "--grid-size",
+          "type": "number",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector segmentize",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--max-segment",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector simplify",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--tolerance",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector symdiff",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--keep-attrs",
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "--suffix",
+          "type": "string",
+          "required": false,
+          "default": "_left,_right"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector triangulate",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--max-features",
+          "type": "integer",
+          "required": false,
+          "default": 10000
+        },
+        {
+          "name": "--max-vertices",
+          "type": "integer",
+          "required": false,
+          "default": 100000
+        }
+      ]
+    },
+    {
+      "name": "vector union",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--by",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--keep-attrs",
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        {
+          "name": "--suffix",
+          "type": "string",
+          "required": false,
+          "default": "_left,_right"
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "vector voronoi",
+      "category": "vector",
+      "data_type": "vector",
+      "input_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "shp",
+        "gpkg",
+        "kml"
+      ],
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overwrite",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--max-features",
+          "type": "integer",
+          "required": false,
+          "default": 10000
+        },
+        {
+          "name": "--max-vertices",
+          "type": "integer",
+          "required": false,
+          "default": 100000
+        }
+      ]
+    }
+  ]
+}

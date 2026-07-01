@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecospheric-harness"
+version = "0.1.0"
+description = "Ecospheric Agent Harness — orchestrates ETP tools (EDD, ESE)"
+requires-python = ">=3.11"
+dependencies = [
+    "etp>=0.1.0",
+    "pyproj",
+    "httpx",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
+
+[tool.setuptools.packages.find]
+include = ["ecospheric_harness*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+strict = true
+[[tool.mypy.overrides]]
+module = ["etp.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

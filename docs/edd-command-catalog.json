@@ -1,0 +1,755 @@
+{
+  "tool": "edd",
+  "commands": [
+    {
+      "name": "@ckan search",
+      "category": "discovery",
+      "data_type": "metadata",
+      "input_formats": [],
+      "output_formats": [
+        "json"
+      ],
+      "parameters": [
+        {
+          "name": "--bbox",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "auto"
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--quiet",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--no-cache",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--timeout",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--log-level",
+          "type": "string",
+          "required": false,
+          "default": "warn"
+        },
+        {
+          "name": "--instance",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--q",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--fq",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--start",
+          "type": "integer",
+          "required": false,
+          "default": 0
+        }
+      ]
+    },
+    {
+      "name": "@earthquakes search",
+      "category": "discovery",
+      "data_type": "vector",
+      "input_formats": [],
+      "output_formats": [
+        "geojson",
+        "geoparquet",
+        "json"
+      ],
+      "parameters": [
+        {
+          "name": "--bbox",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "auto"
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--quiet",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--no-cache",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--timeout",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--log-level",
+          "type": "string",
+          "required": false,
+          "default": "warn"
+        },
+        {
+          "name": "--intent",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--starttime",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--endtime",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--minmagnitude",
+          "type": "number",
+          "required": false,
+          "default": null
+        }
+      ]
+    },
+    {
+      "name": "@firms search",
+      "category": "discovery",
+      "data_type": "metadata",
+      "input_formats": [],
+      "output_formats": [
+        "json"
+      ],
+      "parameters": [
+        {
+          "name": "--bbox",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "auto"
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--quiet",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--no-cache",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--timeout",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--log-level",
+          "type": "string",
+          "required": false,
+          "default": "warn"
+        },
+        {
+          "name": "--sensor",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--timespan",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--file-format",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--region",
+          "type": "string",
+          "required": false,
+          "default": null
+        }
+      ]
+    },
+    {
+      "name": "@gbif search",
+      "category": "discovery",
+      "data_type": "vector",
+      "input_formats": [],
+      "output_formats": [
+        "geoparquet",
+        "geojson",
+        "json"
+      ],
+      "parameters": [
+        {
+          "name": "--bbox",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "auto"
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--quiet",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--no-cache",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--timeout",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--log-level",
+          "type": "string",
+          "required": false,
+          "default": "warn"
+        },
+        {
+          "name": "--taxon-key",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--scientific-name",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--year",
+          "type": "string",
+          "required": false,
+          "default": null
+        }
+      ]
+    },
+    {
+      "name": "@geoboundaries search",
+      "category": "discovery",
+      "data_type": "vector",
+      "input_formats": [],
+      "output_formats": [
+        "geoparquet",
+        "geojson"
+      ],
+      "parameters": [
+        {
+          "name": "--bbox",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "auto"
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--quiet",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--no-cache",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--timeout",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--log-level",
+          "type": "string",
+          "required": false,
+          "default": "warn"
+        },
+        {
+          "name": "--iso3",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--adm-level",
+          "type": "string",
+          "required": true,
+          "default": null
+        }
+      ]
+    },
+    {
+      "name": "@opentopography search",
+      "category": "discovery",
+      "data_type": "metadata",
+      "input_formats": [],
+      "output_formats": [
+        "json"
+      ],
+      "parameters": [
+        {
+          "name": "--bbox",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "auto"
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--quiet",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--no-cache",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--timeout",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--log-level",
+          "type": "string",
+          "required": false,
+          "default": "warn"
+        },
+        {
+          "name": "--demtype",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--output-format",
+          "type": "string",
+          "required": false,
+          "default": "GTiff"
+        }
+      ]
+    },
+    {
+      "name": "@osm search",
+      "category": "discovery",
+      "data_type": "vector",
+      "input_formats": [],
+      "output_formats": [
+        "geoparquet",
+        "geojson",
+        "json"
+      ],
+      "parameters": [
+        {
+          "name": "--bbox",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "auto"
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--quiet",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--no-cache",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--timeout",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--log-level",
+          "type": "string",
+          "required": false,
+          "default": "warn"
+        },
+        {
+          "name": "--intent",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--overpassql",
+          "type": "string",
+          "required": false,
+          "default": null
+        }
+      ]
+    },
+    {
+      "name": "@overture search",
+      "category": "discovery",
+      "data_type": "vector",
+      "input_formats": [],
+      "output_formats": [
+        "geoparquet",
+        "geojson"
+      ],
+      "parameters": [
+        {
+          "name": "--bbox",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "auto"
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--quiet",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--no-cache",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--timeout",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--log-level",
+          "type": "string",
+          "required": false,
+          "default": "warn"
+        },
+        {
+          "name": "--intent",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--release",
+          "type": "string",
+          "required": false,
+          "default": "2026-06-17.0"
+        }
+      ]
+    },
+    {
+      "name": "@stac search",
+      "category": "discovery",
+      "data_type": "metadata",
+      "input_formats": [],
+      "output_formats": [
+        "json",
+        "geoparquet"
+      ],
+      "parameters": [
+        {
+          "name": "--bbox",
+          "type": "string",
+          "required": true,
+          "default": null
+        },
+        {
+          "name": "--output",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "required": false,
+          "default": "auto"
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--json",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--quiet",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--no-cache",
+          "type": "boolean",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "--timeout",
+          "type": "integer",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--log-level",
+          "type": "string",
+          "required": false,
+          "default": "warn"
+        },
+        {
+          "name": "--catalog",
+          "type": "string",
+          "required": false,
+          "default": "earth-search"
+        },
+        {
+          "name": "--collection",
+          "type": "string",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "--date",
+          "type": "string",
+          "required": false,
+          "default": null
+        }
+      ]
+    }
+  ]
+}
