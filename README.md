@@ -1,6 +1,6 @@
-# Ecospheric Agent Harness
+# Ecospheric Spatial Harness
 
-Multi-turn LLM orchestration harness for ETP-compatible geospatial tools (EDD, ESE). The model orchestrates multi-step geospatial pipelines — search, fetch, clip, reproject, analyze — while the harness enforces schema, chains tool I/O, manages intermediate artifacts, and supports conversational corrections (undo/redo).
+Multi-turn LLM orchestration harness for ETP-compatible geospatial tools (EDD, ESE). The model orchestrates multi-step spatial pipelines — search, fetch, clip, reproject, analyze — while the harness enforces schema, chains tool I/O, manages intermediate artifacts, and supports conversational corrections (undo/redo).
 
 ## Architecture
 
@@ -81,7 +81,7 @@ for step in result.steps:
 ## CLI
 
 ```
-ecospheric-harness [-h] [--model MODEL] [--list-tools] [--list-intents]
+ecospheric-spatial-harness [-h] [--model MODEL] [--list-tools] [--list-intents]
                     [--dry-run] [--max-turns N] [--subprocess-timeout SECS]
                     [--disk-limit-gb GB] [--search-cap N]
                     [prompt]
