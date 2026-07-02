@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 
 import pyproj
 from etp.describe import CommandDescriptor
@@ -9,6 +10,7 @@ from pyproj.exceptions import CRSError
 
 from ecospheric_harness.artifact import Artifact, ArtifactManager
 from ecospheric_harness.intents import PreflightResult
+from ecospheric_harness.security import check_ssrf as _check_ssrf_url
 from ecospheric_harness.workspace import WorkspaceManager
 
 
@@ -109,4 +111,30 @@ class PreflightChecker:
                 ),
             )
 
+        return PreflightResult(ok=True)
+
+    # ------------------------------------------------------------------
+    # SSRF checks
+    # ------------------------------------------------------------------
+
+    def check_ssrf(self, params: dict[str, Any]) -> PreflightResult:
+        """Scan param values for URLs and check each against blocked ranges.
+
+        Returns PreflightResult(ok=False, error=...) if any URL targets an
+        internal/metadata address.
+        """
+        for key, value in params.items():
+            if key == "_input_target":
+                continue
+            if not isinstance(value, str):
+                continue
+            if not (value.startswith("http://") or value.startswith("https://")):
+                continue
+            try:
+                _check_ssrf_url(value)
+            except ValueError as exc:
+                return PreflightResult(
+                    ok=False,
+                    error=f"URL in param '{key}' is blocked: {exc}",
+                )
         return PreflightResult(ok=True)

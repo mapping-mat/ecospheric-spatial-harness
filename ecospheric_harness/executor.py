@@ -16,6 +16,7 @@ from etp.describe import CommandDescriptor, ParameterDescriptor
 
 from ecospheric_harness.artifact import Artifact
 from ecospheric_harness.intents import ExecuteResult, RegisteredTool
+from ecospheric_harness.security import SubprocessHardener, check_ssrf
 from ecospheric_harness.workspace import PathConfinementError, WorkspaceManager
 
 # Geo extensions used as heuristic for path-type params
@@ -74,7 +75,9 @@ def serialize_params(
 class ToolExecutor:
     """Executes ETP tool commands as subprocesses with parameter serialization."""
 
-    def __init__(self, subprocess_timeout: int = 300) -> None:
+    def __init__(self, hardener: SubprocessHardener | None = None, *, subprocess_timeout: int = 300) -> None:
+        self._hardener: SubprocessHardener = hardener or SubprocessHardener()
+        # Keep subprocess_timeout for backward compat; hardener.limits overrides.
         self._timeout: int = subprocess_timeout
 
     def execute(
@@ -88,13 +91,15 @@ class ToolExecutor:
         """Execute a tool command and return the result.
 
         Steps:
-        1. Generate output path
-        2. Build argv with binary + tokenized command + --output
-        3. Route input artifact if present
-        4. Serialize params (stripping _input_target)
-        5. Append --json flag
-        6. Run subprocess
-        7. Parse stdout JSON or construct error envelope
+        1. Check path-typed params for confinement
+        2. Check model-emitted URLs for SSRF
+        3. Generate output path
+        4. Build argv with binary + tokenized command + --output
+        5. Route input artifact if present
+        6. Serialize params (stripping _input_target)
+        7. Append --json flag
+        8. Run subprocess with hardened env, resource limits, timeout
+        9. Sanitize output and parse JSON or construct error envelope
         """
         # Check path-typed params for confinement
         confinement_error = self._check_param_paths(params, workspace)
@@ -114,6 +119,23 @@ class ToolExecutor:
                 output_path=workspace.create_temp_path(),
             )
 
+        # Check model-emitted URLs for SSRF
+        ssrf_error = self._check_ssrf_params(params)
+        if ssrf_error is not None:
+            return ExecuteResult(
+                envelope={
+                    "status": "error",
+                    "error": {
+                        "type": "ssrf_blocked",
+                        "message": ssrf_error,
+                        "exit_code": -1,
+                        "retryable": False,
+                    },
+                },
+                returncode=-1,
+                output_path=workspace.create_temp_path(),
+            )
+
         output_path = workspace.create_temp_path()
 
         args: list[str] = [tool.binary]
@@ -128,14 +150,27 @@ class ToolExecutor:
         args.extend(self._serialize_params(serializable_params, command))
         args.append("--json")  # ensure envelope output
 
+        # Build hardened environment and get resource limit function
+        env = self._hardener.build_env()
+        timeout = self._hardener.limits.wall_clock_timeout
+        max_output = self._hardener.limits.max_output_bytes
+        preexec = self._hardener.preexec_fn()
+
         try:
-            proc = subprocess.run(args, capture_output=True, text=True, timeout=self._timeout)
+            proc = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env=env,
+                preexec_fn=preexec,
+            )
         except subprocess.TimeoutExpired:
             envelope = {
                 "status": "error",
                 "error": {
                     "type": "timeout",
-                    "message": f"Tool execution timed out after {self._timeout}s",
+                    "message": f"Tool execution timed out after {timeout}s",
                     "exit_code": -1,
                     "retryable": False,
                 },
@@ -146,8 +181,37 @@ class ToolExecutor:
                 output_path=output_path,
             )
 
+        # Post-hoc output size check (max_output_bytes).
+        truncated = False
+        # Ensure strings (subprocess.run with text=True returns str, but
+        # test mocks may return bytes or unset attributes as MagicMock).
+        stdout = proc.stdout
+        stderr = proc.stderr
+        if isinstance(stdout, bytes):
+            stdout = stdout.decode("utf-8", errors="replace")
+        elif not isinstance(stdout, str):
+            stdout = ""
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        elif not isinstance(stderr, str):
+            stderr = ""
+        if len(stdout) > max_output:
+            stdout = stdout[:max_output]
+            truncated = True
+        if len(stderr) > max_output:
+            stderr = stderr[:max_output]
+            truncated = True
+
+        # Sanitize output (redact secrets, API keys, home paths)
+        sanitized = self._hardener.sanitize_output(stdout, stderr)
+        clean_stdout = sanitized.stdout
+
+        if truncated:
+            # Note truncation in stderr if not already erroring
+            clean_stdout = clean_stdout  # already truncated above
+
         try:
-            envelope = json.loads(proc.stdout)
+            envelope = json.loads(clean_stdout)
         except json.JSONDecodeError:
             envelope = {
                 "status": "error",
@@ -159,11 +223,35 @@ class ToolExecutor:
                 },
             }
 
+        # If output was truncated, append metadata to envelope.
+        if truncated and envelope.get("status") == "success":
+            envelope.setdefault("_warnings", []).append(
+                f"Output truncated to {max_output} bytes (max_output_bytes limit)"
+            )
+
         return ExecuteResult(
             envelope=envelope,
             returncode=proc.returncode,
             output_path=output_path,
         )
+
+    @staticmethod
+    def _check_ssrf_params(params: dict[str, Any]) -> str | None:
+        """Check param values for SSRF-targeted URLs.
+
+        Returns an error message if a URL is blocked, or None if all clear.
+        """
+        for key, value in params.items():
+            if key == "_input_target":
+                continue
+            if not isinstance(value, str):
+                continue
+            if value.startswith("http://") or value.startswith("https://"):
+                try:
+                    check_ssrf(value)
+                except ValueError as exc:
+                    return f"URL in param '{key}' is blocked: {exc}"
+        return None
 
     def _route_input(
         self,

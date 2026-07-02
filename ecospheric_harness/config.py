@@ -21,6 +21,12 @@ class HarnessConfig:
     )
     session_id: str | None = None
 
+    # Security
+    subprocess_max_output_mb: int = 100
+    rlimit_as_mb: int | None = None  # None = no RLIMIT_AS
+    rlimit_nproc: int | None = None  # None = no RLIMIT_NPROC
+    gdal_cachemax_mb: int = 256
+
     # ------------------------------------------------------------------
     # Factory methods
     # ------------------------------------------------------------------
@@ -62,6 +68,16 @@ class HarnessConfig:
             cfg.disk_limit_gb = float(v)
         if v := os.environ.get("HARNESS_SEARCH_CAP"):
             cfg.search_cap = int(v)
+
+        # Security env vars
+        if v := os.environ.get("HARNESS_MAX_OUTPUT_MB"):
+            cfg.subprocess_max_output_mb = int(v)
+        if v := os.environ.get("HARNESS_RLIMIT_AS_MB"):
+            cfg.rlimit_as_mb = int(v)
+        if v := os.environ.get("HARNESS_RLIMIT_NPROC"):
+            cfg.rlimit_nproc = int(v)
+        if v := os.environ.get("HARNESS_GDAL_CACHEMAX_MB"):
+            cfg.gdal_cachemax_mb = int(v)
 
         return cfg
 

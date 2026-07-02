@@ -90,6 +90,9 @@ Rules:
     provide the file path in params. The harness will not auto-generate mask
     files.
     Example: {{"intent": "clip", "params": {{"by": "/tmp/harness/mask_abc.geojson"}}}}
+14. Destructive operations (overwrite, delete) will require confirmation in a
+    future phase. For now, the harness blocks path escapes and SSRF attempts
+    automatically.
 """
 
 
@@ -349,6 +352,22 @@ class Orchestrator:
                 envelope=None,
             ))
             return None, self._make_error_turn(disk_result.error, intent)
+
+        # c2. SSRF check.
+        ssrf_result = self._preflight.check_ssrf(resolved.params)
+        if not ssrf_result.ok:
+            self._steps.append(StepRecord(
+                step_number=len(self._steps) + 1,
+                tool=resolved.tool.name,
+                command=resolved.command.name,
+                tool_ref=resolved.tool,
+                command_ref=resolved.command,
+                intent=intent,
+                params=resolved.params,
+                status="rejected",
+                envelope=None,
+            ))
+            return None, self._make_error_turn(ssrf_result.error, intent)
 
         # d. Execute.
         t0 = time.monotonic()

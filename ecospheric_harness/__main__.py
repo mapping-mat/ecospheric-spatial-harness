@@ -28,6 +28,7 @@ from ecospheric_harness.preflight import PreflightChecker
 from ecospheric_harness.registry import ToolRegistry
 from ecospheric_harness.resolver import IntentResolver
 from ecospheric_harness.result import PipelineResult
+from ecospheric_harness.security import SubprocessHardener, SubprocessLimits
 from ecospheric_harness.validator import SchemaValidator
 from ecospheric_harness.workspace import WorkspaceManager
 
@@ -56,6 +57,10 @@ class Harness:
         model: str = "z-ai/glm-5.2",
         workspace_root: str | Path | None = None,
         session_id: str | None = None,
+        max_output_mb: int = 100,
+        rlimit_as_mb: int | None = None,
+        rlimit_nproc: int | None = None,
+        gdal_cachemax_mb: int = 256,
     ) -> None:
         tool_names = tools if tools is not None else ["edd", "ese"]
 
@@ -68,6 +73,10 @@ class Harness:
             max_turns=max_turns,
             workspace_root=Path(workspace_root) if workspace_root is not None else Path.home() / ".esp" / "sessions",
             session_id=session_id,
+            subprocess_max_output_mb=max_output_mb,
+            rlimit_as_mb=rlimit_as_mb,
+            rlimit_nproc=rlimit_nproc,
+            gdal_cachemax_mb=gdal_cachemax_mb,
         )
 
         # Create WorkspaceManager
@@ -77,6 +86,16 @@ class Harness:
             disk_limit_bytes=disk_limit_bytes,
             session_id=self._config.session_id,
         )
+
+        # Create SubprocessHardener from config
+        limits = SubprocessLimits(
+            wall_clock_timeout=subprocess_timeout,
+            max_output_bytes=max_output_mb * 1024 * 1024,
+            rlimit_as=rlimit_as_mb * 1024 * 1024 if rlimit_as_mb is not None else None,
+            rlimit_nproc=rlimit_nproc,
+            gdal_cachemax=str(gdal_cachemax_mb),
+        )
+        hardener = SubprocessHardener(limits)
 
         # Discover tools
         self._discovered_tools: list[RegisteredTool] = (
@@ -107,7 +126,7 @@ class Harness:
         # Build supporting objects
         self._resolver = IntentResolver(self._catalog)
         self._validator = SchemaValidator()
-        self._executor = ToolExecutor(subprocess_timeout=subprocess_timeout)
+        self._executor = ToolExecutor(hardener=hardener)
         self._artifacts = ArtifactManager(
             workspace=self._workspace,
             disk_limit_bytes=disk_limit_bytes,
@@ -236,6 +255,30 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Session identifier for resuming or naming a session",
     )
+    parser.add_argument(
+        "--max-output-mb",
+        type=int,
+        default=100,
+        help="Max subprocess output in MB (default: 100)",
+    )
+    parser.add_argument(
+        "--rlimit-as-mb",
+        type=int,
+        default=None,
+        help="Address space RLIMIT_AS in MB (default: no limit)",
+    )
+    parser.add_argument(
+        "--rlimit-nproc",
+        type=int,
+        default=None,
+        help="Max processes RLIMIT_NPROC (default: no limit)",
+    )
+    parser.add_argument(
+        "--gdal-cachemax",
+        type=int,
+        default=256,
+        help="GDAL_CACHEMAX in MB (default: 256)",
+    )
     return parser
 
 
@@ -352,6 +395,10 @@ def main(argv: list[str] | None = None) -> int:
             max_turns=args.max_turns,
             workspace_root=args.workspace,
             session_id=args.session_id,
+            max_output_mb=args.max_output_mb,
+            rlimit_as_mb=args.rlimit_as_mb,
+            rlimit_nproc=args.rlimit_nproc,
+            gdal_cachemax_mb=args.gdal_cachemax,
         )
         _list_tools_json(harness)
         return 0
@@ -366,6 +413,10 @@ def main(argv: list[str] | None = None) -> int:
             max_turns=args.max_turns,
             workspace_root=args.workspace,
             session_id=args.session_id,
+            max_output_mb=args.max_output_mb,
+            rlimit_as_mb=args.rlimit_as_mb,
+            rlimit_nproc=args.rlimit_nproc,
+            gdal_cachemax_mb=args.gdal_cachemax,
         )
         _list_intents_json(harness)
         return 0
@@ -383,6 +434,10 @@ def main(argv: list[str] | None = None) -> int:
             max_turns=args.max_turns,
             workspace_root=args.workspace,
             session_id=args.session_id,
+            max_output_mb=args.max_output_mb,
+            rlimit_as_mb=args.rlimit_as_mb,
+            rlimit_nproc=args.rlimit_nproc,
+            gdal_cachemax_mb=args.gdal_cachemax,
         )
         _dry_run(harness, args.prompt)
         return 0
@@ -410,6 +465,10 @@ def main(argv: list[str] | None = None) -> int:
         max_turns=args.max_turns,
         workspace_root=args.workspace,
         session_id=args.session_id,
+        max_output_mb=args.max_output_mb,
+        rlimit_as_mb=args.rlimit_as_mb,
+        rlimit_nproc=args.rlimit_nproc,
+        gdal_cachemax_mb=args.gdal_cachemax,
     )
     result = harness.run(args.prompt)
     print(result.summary())
