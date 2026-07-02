@@ -40,8 +40,11 @@ def serialize_params(
         param_map[prop_name] = p
 
     for key, value in params.items():
-        desc = param_map.get(key)
-        flag = desc.name if desc else f"--{key.replace('_', '-')}"
+        # Normalize key: strip leading dashes, replace hyphens with underscores
+        # so both "distance" and "--distance" and "--output-crs" → "output_crs"
+        norm_key = key.lstrip("-").replace("-", "_")
+        desc = param_map.get(norm_key)
+        flag = desc.name if desc else f"--{norm_key.replace('_', '-')}"
         param_type = desc.type if desc else None
 
         if isinstance(value, bool):
