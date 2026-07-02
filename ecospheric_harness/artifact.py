@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ecospheric_harness.workspace import WorkspaceManager
+
 
 # ---------------------------------------------------------------------------
 # Format alias registry
@@ -71,8 +73,10 @@ class ArtifactManager:
     On every third ``store``, the oldest artifact is truly deleted.
     """
 
-    def __init__(self, workdir: Path, disk_limit_bytes: int) -> None:
-        self._workdir = workdir
+    def __init__(
+        self, workspace: WorkspaceManager, disk_limit_bytes: int
+    ) -> None:
+        self._workspace = workspace
         self._disk_limit = disk_limit_bytes
         self._current: Artifact | None = None
         self._previous: Artifact | None = None
@@ -108,12 +112,15 @@ class ArtifactManager:
         Returns the newly stored artifact (now ``current``).
         """
         if self._previous is not None:
+            old_path = self._previous.path
             self._total_bytes -= self._unlink(self._previous)
+            self._workspace.release_bytes(old_path)
             self._previous = None
 
         self._previous = self._current
         self._current = artifact
         self._total_bytes += self._artifact_size(artifact)
+        self._workspace.track_bytes(artifact.path)
         return self._current
 
     def replace_current(self, artifact: Artifact) -> Artifact:
@@ -122,9 +129,12 @@ class ArtifactManager:
         Returns the replacement artifact (now ``current``).
         """
         if self._current is not None:
+            old_path = self._current.path
             self._total_bytes -= self._unlink(self._current)
+            self._workspace.release_bytes(old_path)
         self._current = artifact
         self._total_bytes += self._artifact_size(artifact)
+        self._workspace.track_bytes(artifact.path)
         return self._current
 
     def undo(self) -> Artifact | None:
@@ -134,7 +144,9 @@ class ArtifactManager:
         """
         if self._current is None:
             return None
+        current_path = self._current.path
         self._total_bytes -= self._unlink(self._current)
+        self._workspace.release_bytes(current_path)
         self._current = self._previous
         self._previous = None
         return self._current
@@ -176,6 +188,10 @@ class ArtifactManager:
 
     def free(self) -> None:
         """Unlink all managed artifacts and reset byte tracking."""
+        if self._previous is not None:
+            self._workspace.release_bytes(self._previous.path)
+        if self._current is not None:
+            self._workspace.release_bytes(self._current.path)
         self._unlink(self._previous)
         self._unlink(self._current)
         self._previous = None

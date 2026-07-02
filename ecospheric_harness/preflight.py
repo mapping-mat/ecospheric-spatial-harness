@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pyproj
 from etp.describe import CommandDescriptor
@@ -10,14 +9,17 @@ from pyproj.exceptions import CRSError
 
 from ecospheric_harness.artifact import Artifact, ArtifactManager
 from ecospheric_harness.intents import PreflightResult
+from ecospheric_harness.workspace import WorkspaceManager
 
 
 class PreflightChecker:
     """Validates that a command can safely execute on the available resources."""
 
-    def __init__(self, artifacts: ArtifactManager, workdir: Path) -> None:
+    def __init__(
+        self, artifacts: ArtifactManager, workspace: WorkspaceManager
+    ) -> None:
         self._artifacts = artifacts
-        self._workdir = workdir
+        self._workspace = workspace
 
     # ------------------------------------------------------------------
     # CRS checks

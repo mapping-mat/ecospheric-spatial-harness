@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Any, cast
 
 from ecospheric_harness.artifact import ArtifactManager
@@ -28,6 +29,7 @@ from ecospheric_harness.registry import ToolRegistry
 from ecospheric_harness.resolver import IntentResolver
 from ecospheric_harness.result import PipelineResult
 from ecospheric_harness.validator import SchemaValidator
+from ecospheric_harness.workspace import WorkspaceManager
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +54,8 @@ class Harness:
         search_cap: int = 20,
         max_turns: int = 20,
         model: str = "z-ai/glm-5.2",
+        workspace_root: str | Path | None = None,
+        session_id: str | None = None,
     ) -> None:
         tool_names = tools if tools is not None else ["edd", "ese"]
 
@@ -62,6 +66,16 @@ class Harness:
             disk_limit_gb=disk_limit_gb,
             search_cap=search_cap,
             max_turns=max_turns,
+            workspace_root=Path(workspace_root) if workspace_root is not None else Path.home() / ".esp" / "sessions",
+            session_id=session_id,
+        )
+
+        # Create WorkspaceManager
+        disk_limit_bytes = int(disk_limit_gb * 1024 * 1024 * 1024)
+        self._workspace = WorkspaceManager(
+            self._config.workspace_root,
+            disk_limit_bytes=disk_limit_bytes,
+            session_id=self._config.session_id,
         )
 
         # Discover tools
@@ -95,19 +109,19 @@ class Harness:
         self._validator = SchemaValidator()
         self._executor = ToolExecutor(subprocess_timeout=subprocess_timeout)
         self._artifacts = ArtifactManager(
-            workdir=self._config.workdir,
-            disk_limit_bytes=int(disk_limit_gb * 1024 * 1024 * 1024),
+            workspace=self._workspace,
+            disk_limit_bytes=disk_limit_bytes,
         )
         self._preflight = PreflightChecker(
             artifacts=self._artifacts,
-            workdir=self._config.workdir,
+            workspace=self._workspace,
         )
         self._corrections = CorrectionHandler(
             artifacts=self._artifacts,
             steps=[],  # shared mutable list — orchestrator appends to it
             executor=self._executor,
             resolver=self._resolver,
-            workdir=self._config.workdir,
+            workspace=self._workspace,
             preflight=self._preflight,
         )
         # Orchestrator shares the corrections' step list
@@ -121,6 +135,7 @@ class Harness:
             preflight=self._preflight,
             corrections=self._corrections,
             catalog=self._catalog,
+            workspace=self._workspace,
         )
 
     # -- public methods ----------------------------------------------------
@@ -210,6 +225,16 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=20,
         help="Max search result items (default: 20)",
+    )
+    parser.add_argument(
+        "--workspace",
+        default=None,
+        help="Workspace root directory (default: ~/.esp/sessions)",
+    )
+    parser.add_argument(
+        "--session-id",
+        default=None,
+        help="Session identifier for resuming or naming a session",
     )
     return parser
 
@@ -325,6 +350,8 @@ def main(argv: list[str] | None = None) -> int:
             disk_limit_gb=args.disk_limit_gb,
             search_cap=args.search_cap,
             max_turns=args.max_turns,
+            workspace_root=args.workspace,
+            session_id=args.session_id,
         )
         _list_tools_json(harness)
         return 0
@@ -337,6 +364,8 @@ def main(argv: list[str] | None = None) -> int:
             disk_limit_gb=args.disk_limit_gb,
             search_cap=args.search_cap,
             max_turns=args.max_turns,
+            workspace_root=args.workspace,
+            session_id=args.session_id,
         )
         _list_intents_json(harness)
         return 0
@@ -352,6 +381,8 @@ def main(argv: list[str] | None = None) -> int:
             disk_limit_gb=args.disk_limit_gb,
             search_cap=args.search_cap,
             max_turns=args.max_turns,
+            workspace_root=args.workspace,
+            session_id=args.session_id,
         )
         _dry_run(harness, args.prompt)
         return 0
@@ -377,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
         disk_limit_gb=args.disk_limit_gb,
         search_cap=args.search_cap,
         max_turns=args.max_turns,
+        workspace_root=args.workspace,
+        session_id=args.session_id,
     )
     result = harness.run(args.prompt)
     print(result.summary())

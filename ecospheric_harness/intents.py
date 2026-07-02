@@ -140,7 +140,7 @@ class IntentOption:
     tool: str = ""
     command: str = ""
     data_type: str = ""
-    params: list[dict] = field(default_factory=list)  # non-denylisted param descriptors
+    params: list[dict[str, Any]] = field(default_factory=list)  # non-denylisted param descriptors
 
 
 @dataclass

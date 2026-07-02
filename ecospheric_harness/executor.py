@@ -11,12 +11,19 @@ import json
 import subprocess
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from etp.describe import CommandDescriptor, ParameterDescriptor
 
 from ecospheric_harness.artifact import Artifact
 from ecospheric_harness.intents import ExecuteResult, RegisteredTool
+from ecospheric_harness.workspace import PathConfinementError, WorkspaceManager
+
+# Geo extensions used as heuristic for path-type params
+_GEO_EXTENSIONS = frozenset({
+    ".geojson", ".shp", ".gpkg", ".tif", ".tiff", ".geotiff",
+    ".cog", ".fgb", ".parquet", ".geoparquet", ".kml", ".kmz",
+    ".laz", ".las", ".ply", ".gdb", ".json",
+})
 
 
 def serialize_params(
@@ -76,7 +83,7 @@ class ToolExecutor:
         command: CommandDescriptor,
         params: dict[str, Any],
         input_artifact: Artifact | None,
-        workdir: Path,
+        workspace: WorkspaceManager,
     ) -> ExecuteResult:
         """Execute a tool command and return the result.
 
@@ -89,8 +96,25 @@ class ToolExecutor:
         6. Run subprocess
         7. Parse stdout JSON or construct error envelope
         """
-        output_path = workdir / f"step_{uuid4().hex[:8]}.bin"
-        workdir.mkdir(parents=True, exist_ok=True)
+        # Check path-typed params for confinement
+        confinement_error = self._check_param_paths(params, workspace)
+        if confinement_error is not None:
+            envelope: dict[str, Any] = {
+                "status": "error",
+                "error": {
+                    "type": "path_confinement",
+                    "message": str(confinement_error),
+                    "exit_code": -1,
+                    "retryable": False,
+                },
+            }
+            return ExecuteResult(
+                envelope=envelope,
+                returncode=-1,
+                output_path=workspace.create_temp_path(),
+            )
+
+        output_path = workspace.create_temp_path()
 
         args: list[str] = [tool.binary]
         args.extend(command.name.split())  # tokenize "raster clip" → ["raster", "clip"]
@@ -107,7 +131,7 @@ class ToolExecutor:
         try:
             proc = subprocess.run(args, capture_output=True, text=True, timeout=self._timeout)
         except subprocess.TimeoutExpired:
-            envelope: dict[str, Any] = {
+            envelope = {
                 "status": "error",
                 "error": {
                     "type": "timeout",
@@ -198,3 +222,34 @@ class ToolExecutor:
     ) -> list[str]:
         """Serialize params using the shared serialize_params function."""
         return serialize_params(params, command)
+
+    @staticmethod
+    def _check_param_paths(
+        params: dict[str, Any],
+        workspace: WorkspaceManager,
+    ) -> PathConfinementError | None:
+        """Check path-like params for confinement.
+
+        Heuristic: a param value is path-like if:
+        - it's a string containing '/' or '\\'
+        - its lowercase form ends with a known geo extension
+
+        Returns the first PathConfinementError encountered, or None.
+        """
+        for key, value in params.items():
+            if key == "_input_target":
+                continue
+            if not isinstance(value, str):
+                continue
+            looks_like_path = (
+                "/" in value
+                or "\\" in value
+                or any(value.lower().endswith(ext) for ext in _GEO_EXTENSIONS)
+            )
+            if not looks_like_path:
+                continue
+            try:
+                workspace.check_path(Path(value))
+            except PathConfinementError as exc:
+                return exc
+        return None

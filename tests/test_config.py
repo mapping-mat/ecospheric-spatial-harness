@@ -18,7 +18,7 @@ def test_defaults_match_spec() -> None:
     assert cfg.disk_limit_gb == 2.0
     assert cfg.search_cap == 20
     assert cfg.max_turns == 20
-    assert cfg.workdir == Path(cfg.workdir)  # is a Path
+    assert cfg.workspace_root == Path(cfg.workspace_root)  # is a Path
 
 
 # ── from_env with defaults (no env vars) ─────────────────────────────
@@ -57,7 +57,7 @@ def test_from_env_all_vars() -> None:
     }
     with patch.dict(os.environ, env, clear=True):
         cfg = HarnessConfig.from_env()
-    assert cfg.workdir == Path("/tmp/custom_harness")
+    assert cfg.workspace_root == Path("/tmp/custom_harness")
     assert cfg.max_turns == 50
     assert cfg.subprocess_timeout == 600
     assert cfg.disk_limit_gb == 4.5

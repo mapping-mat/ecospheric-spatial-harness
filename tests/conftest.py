@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from ecospheric_harness.workspace import WorkspaceManager
+
 
 @pytest.fixture()
 def tmp_workdir(tmp_path: Path) -> Path:
@@ -11,6 +13,12 @@ def tmp_workdir(tmp_path: Path) -> Path:
     d = tmp_path / "harness_workdir"
     d.mkdir()
     return d
+
+
+@pytest.fixture()
+def tmp_workspace(tmp_path: Path) -> WorkspaceManager:
+    """Return a WorkspaceManager backed by a temporary directory."""
+    return WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000)
 
 
 @pytest.fixture()

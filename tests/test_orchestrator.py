@@ -17,6 +17,7 @@ from ecospheric_harness.artifact import ArtifactManager
 from ecospheric_harness.config import HarnessConfig
 from ecospheric_harness.corrections import CorrectionHandler
 from ecospheric_harness.executor import ToolExecutor
+from ecospheric_harness.workspace import WorkspaceManager
 from ecospheric_harness.intents import (
     IntentEntry,
     IntentOption,
@@ -53,13 +54,13 @@ def _make_mock_orchestrator(
         model="test-model",
         max_turns=max_turns,
         search_cap=search_cap,
-        workdir=tmp_path,
+        workspace_root=tmp_path,
     )
     registry = MagicMock(spec=ToolRegistry)
     resolver = MagicMock(spec=IntentResolver)
     validator = MagicMock(spec=SchemaValidator)
     executor = MagicMock(spec=ToolExecutor)
-    artifacts = ArtifactManager(workdir=tmp_path, disk_limit_bytes=10_000_000)
+    artifacts = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000), disk_limit_bytes=10_000_000)
     preflight = MagicMock(spec=PreflightChecker)
     corrections = MagicMock(spec=CorrectionHandler)
 
@@ -121,6 +122,7 @@ def _make_mock_orchestrator(
         preflight=preflight,
         corrections=corrections,
         catalog=catalog,
+        workspace=WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000),
     )
     return orch, artifacts, resolver, corrections
 
@@ -444,19 +446,20 @@ class TestCompleteIntent:
         orch.run("do something")
 
         # Check provenance.json exists and is valid JSON
-        provenance_path = tmp_path / "provenance.json"
+        session_dir = orch._workspace.session_dir
+        provenance_path = session_dir / "provenance.json"
         assert provenance_path.exists()
         provenance_data = json.loads(provenance_path.read_text())
         assert len(provenance_data) == 1
 
         # Check summary.json exists
-        summary_path = tmp_path / "summary.json"
+        summary_path = session_dir / "summary.json"
         assert summary_path.exists()
         summary_data = json.loads(summary_path.read_text())
         assert "summary" in summary_data
 
         # Check output file exists with correct extension
-        output_dir = tmp_path / "output"
+        output_dir = session_dir / "output"
         assert output_dir.exists()
         output_files = list(output_dir.iterdir())
         assert len(output_files) == 1
@@ -1264,17 +1267,18 @@ class TestWorkdirCreated:
     def test_workdir_created_for_terminal(
         self, mock_menu: MagicMock, mock_httpx: MagicMock, tmp_path: Path,
     ) -> None:
-        """workdir is created even if it doesn't exist before _handle_terminal."""
+        """session_dir is created even if it doesn't exist before _handle_terminal."""
         # Use a nested path that doesn't exist yet
         nested_workdir = tmp_path / "deep" / "nested" / "workdir"
         orch, _, _, _ = _make_mock_orchestrator(tmp_path)
-        # Override workdir to point to the nested path after creation
+        # Override workspace to point to the nested path after creation
         orch._config = HarnessConfig(
             model="test-model",
             max_turns=20,
             search_cap=20,
-            workdir=nested_workdir,
+            workspace_root=nested_workdir,
         )
+        orch._workspace = WorkspaceManager(nested_workdir, disk_limit_bytes=10_000_000, session_id="terminal_test")
 
         mock_menu.return_value = [IntentOption(
             intent="clip", description="Clip raster", required_params=[],
@@ -1288,10 +1292,10 @@ class TestWorkdirCreated:
 
         orch.run("test")
 
-        # Should not raise — workdir was created
-        assert nested_workdir.exists()
-        assert (nested_workdir / "provenance.json").exists()
-        assert (nested_workdir / "summary.json").exists()
+        # Should not raise — session_dir was created
+        assert orch._workspace.session_dir.exists()
+        assert (orch._workspace.session_dir / "provenance.json").exists()
+        assert (orch._workspace.session_dir / "summary.json").exists()
 
 
 # ---------------------------------------------------------------------------

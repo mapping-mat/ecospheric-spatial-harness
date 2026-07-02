@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-import tempfile
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -16,9 +16,10 @@ class HarnessConfig:
     disk_limit_gb: float = 2.0
     search_cap: int = 20
     max_turns: int = 20
-    workdir: Path = field(
-        default_factory=lambda: Path(tempfile.gettempdir()) / "harness"
+    workspace_root: Path = field(
+        default_factory=lambda: Path.home() / ".esp" / "sessions"
     )
+    session_id: str | None = None
 
     # ------------------------------------------------------------------
     # Factory methods
@@ -36,8 +37,23 @@ class HarnessConfig:
 
         cfg = cls()
 
+        # New env var: HARNESS_WORKSPACE_ROOT
+        if v := os.environ.get("HARNESS_WORKSPACE_ROOT"):
+            cfg.workspace_root = Path(v)
+
+        # Deprecated alias: HARNESS_WORKDIR
         if v := os.environ.get("HARNESS_WORKDIR"):
-            cfg.workdir = Path(v)
+            warnings.warn(
+                "HARNESS_WORKDIR is deprecated; use HARNESS_WORKSPACE_ROOT instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            # Only use the deprecated value if the new one wasn't set
+            if not os.environ.get("HARNESS_WORKSPACE_ROOT"):
+                cfg.workspace_root = Path(v)
+
+        if v := os.environ.get("HARNESS_SESSION_ID"):
+            cfg.session_id = v
         if v := os.environ.get("HARNESS_MAX_TURNS"):
             cfg.max_turns = int(v)
         if v := os.environ.get("HARNESS_SUBPROCESS_TIMEOUT"):

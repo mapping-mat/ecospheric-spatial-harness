@@ -19,6 +19,7 @@ from ecospheric_harness.artifact import Artifact, ArtifactManager
 from ecospheric_harness.config import HarnessConfig
 from ecospheric_harness.corrections import CorrectionHandler
 from ecospheric_harness.executor import ToolExecutor
+from ecospheric_harness.workspace import WorkspaceManager
 from ecospheric_harness.intents import IntentEntry, RegisteredTool, ResolutionError
 from ecospheric_harness.menu import available_intents
 from ecospheric_harness.orchestrator import Orchestrator
@@ -168,12 +169,13 @@ def _build_orchestrator(
     search_cap: int = 20,
     disk_limit_bytes: int = 10_000_000,
 ) -> tuple[Orchestrator, ArtifactManager]:
-    config = HarnessConfig(model="test", search_cap=search_cap, workdir=tmp_path)
-    artifacts = ArtifactManager(workdir=tmp_path, disk_limit_bytes=disk_limit_bytes)
+    config = HarnessConfig(model="test", search_cap=search_cap, workspace_root=tmp_path)
+    artifacts = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=disk_limit_bytes), disk_limit_bytes=disk_limit_bytes)
     resolver = IntentResolver(catalog)
     executor = ToolExecutor()
     shared_steps: list[StepRecord] = []
-    corrections = CorrectionHandler(artifacts, shared_steps, executor, resolver, tmp_path)
+    ws_integ = WorkspaceManager(tmp_path, disk_limit_bytes=disk_limit_bytes)
+    corrections = CorrectionHandler(artifacts, shared_steps, executor, resolver, workspace=ws_integ)
     orch = Orchestrator(
         config=config,
         registry=ToolRegistry(),
@@ -187,6 +189,7 @@ def _build_orchestrator(
         ),
         corrections=corrections,
         catalog=catalog,
+        workspace=ws_integ,
     )
     # Share the same steps list between orchestrator and corrections handler.
     orch._steps = shared_steps
@@ -378,7 +381,7 @@ class TestPlanarCRSRejection:
         art = _artifact(tmp_path, "a.bin", crs="EPSG:4326")
         cmd = _cmd("distance", requires_planar_crs=True)
         checker = PreflightChecker(
-            artifacts=MagicMock(), workdir=tmp_path,
+            artifacts=MagicMock(), workspace=WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000),
         )
         result = checker.check_planar_crs(cmd, art)
 
@@ -396,8 +399,9 @@ class TestDiskLimitRejection:
         art = _artifact(tmp_path, "big.bin")
         art.path.write_bytes(b"x" * 2000)
 
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=500)
-        checker = PreflightChecker(artifacts=mgr, workdir=tmp_path)
+        ws = WorkspaceManager(tmp_path, disk_limit_bytes=500)
+        mgr = ArtifactManager(workspace=ws, disk_limit_bytes=500)
+        checker = PreflightChecker(artifacts=mgr, workspace=ws)
 
         result = checker.check_disk(input_artifact=art)
 
@@ -418,7 +422,7 @@ class TestSubprocessTimeout:
 
         with patch("ecospheric_harness.executor.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="ese", timeout=1)
-            result = executor.execute(tool, cmd, {}, None, tmp_path)
+            result = executor.execute(tool, cmd, {}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         assert result.envelope["status"] == "error"
         assert result.envelope["error"]["type"] == "timeout"

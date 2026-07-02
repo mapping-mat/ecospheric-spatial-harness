@@ -11,6 +11,7 @@ from ecospheric_harness.artifact import (
     ArtifactManager,
     normalize_format,
 )
+from ecospheric_harness.workspace import WorkspaceManager
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +40,7 @@ def _make_artifact(tmp_path: Path, name: str, body: bytes = b"x", **kw: object) 
 
 class TestWindowShift:
     def test_store_sequence(self, tmp_path: Path) -> None:
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a = _make_artifact(tmp_path, "a.bin", b"aaa")
         b = _make_artifact(tmp_path, "b.bin", b"bb")
         c = _make_artifact(tmp_path, "c.bin", b"c")
@@ -70,7 +71,7 @@ class TestWindowShift:
 
 class TestUndo:
     def test_undo_at_step_2(self, tmp_path: Path) -> None:
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a = _make_artifact(tmp_path, "a.bin", b"a")
         b = _make_artifact(tmp_path, "b.bin", b"bb")
 
@@ -84,7 +85,7 @@ class TestUndo:
         assert not b.path.exists(), "B's file should be deleted after undo"
 
     def test_undo_at_step_1(self, tmp_path: Path) -> None:
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a = _make_artifact(tmp_path, "a.bin", b"a")
 
         mgr.store(a)
@@ -102,7 +103,7 @@ class TestUndo:
 
 class TestReplaceCurrent:
     def test_replace_current(self, tmp_path: Path) -> None:
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a = _make_artifact(tmp_path, "a.bin", b"a")
         b = _make_artifact(tmp_path, "b.bin", b"bb")
         c = _make_artifact(tmp_path, "c.bin", b"ccc")
@@ -124,7 +125,7 @@ class TestReplaceCurrent:
 
 class TestPostUndoStore:
     def test_post_undo_store(self, tmp_path: Path) -> None:
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a = _make_artifact(tmp_path, "a.bin", b"a")
         b = _make_artifact(tmp_path, "b.bin", b"bb")
         c = _make_artifact(tmp_path, "c.bin", b"ccc")
@@ -145,7 +146,7 @@ class TestPostUndoStore:
 
 class TestCanUndo:
     def test_can_undo_sequence(self, tmp_path: Path) -> None:
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a = _make_artifact(tmp_path, "a.bin", b"a")
         b = _make_artifact(tmp_path, "b.bin", b"bb")
         c = _make_artifact(tmp_path, "c.bin", b"ccc")
@@ -173,7 +174,7 @@ class TestCanUndo:
 class TestDiskTracking:
     def test_total_bytes_through_sequence(self, tmp_path: Path) -> None:
         limit = 1_000_000
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=limit)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=limit), disk_limit_bytes=limit)
 
         a = _make_artifact(tmp_path, "a.bin", b"a" * 100)  # 100 bytes
         b = _make_artifact(tmp_path, "b.bin", b"b" * 200)  # 200 bytes
@@ -205,7 +206,7 @@ class TestDiskTracking:
 
 class TestDiskAvailable:
     def test_under_and_over_limit(self, tmp_path: Path) -> None:
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=500)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=500), disk_limit_bytes=500)
 
         a = _make_artifact(tmp_path, "a.bin", b"a" * 200)
         mgr.store(a)
@@ -239,7 +240,7 @@ class TestNormalizeFormat:
 
 class TestFree:
     def test_free(self, tmp_path: Path) -> None:
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a = _make_artifact(tmp_path, "a.bin", b"a")
         b = _make_artifact(tmp_path, "b.bin", b"bb")
 

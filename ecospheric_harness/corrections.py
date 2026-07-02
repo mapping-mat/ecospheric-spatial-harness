@@ -8,7 +8,6 @@ with two redo paths: replace-current (no undo before redo) and post-undo
 from __future__ import annotations
 
 import time
-from pathlib import Path
 from typing import Any
 
 from ecospheric_harness.artifact import Artifact, ArtifactManager
@@ -17,6 +16,7 @@ from ecospheric_harness.intents import CorrectionResult, ExecuteResult
 from ecospheric_harness.preflight import PreflightChecker
 from ecospheric_harness.resolver import IntentResolver
 from ecospheric_harness.result import StepRecord
+from ecospheric_harness.workspace import WorkspaceManager
 
 # etp types used for _build_artifact signature
 from etp.describe import CommandDescriptor
@@ -43,14 +43,14 @@ class CorrectionHandler:
         steps: list[StepRecord],
         executor: ToolExecutor,
         resolver: IntentResolver,
-        workdir: Path,
+        workspace: WorkspaceManager,
         preflight: PreflightChecker | None = None,
     ) -> None:
         self._artifacts = artifacts
         self._steps = steps
         self._executor = executor
         self._resolver = resolver
-        self._workdir = workdir
+        self._workspace = workspace
         self._preflight = preflight
 
     def undo(self) -> CorrectionResult:
@@ -145,7 +145,7 @@ class CorrectionHandler:
             target.command_ref,
             params,
             input_artifact,
-            self._workdir,
+            self._workspace,
         )
         duration_ms = int((time.monotonic() - t0) * 1000)
 

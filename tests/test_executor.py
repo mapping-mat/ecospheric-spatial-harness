@@ -18,6 +18,7 @@ from etp.describe import CommandDescriptor, ParameterDescriptor
 
 from ecospheric_harness.artifact import Artifact
 from ecospheric_harness.executor import ToolExecutor
+from ecospheric_harness.workspace import WorkspaceManager
 from ecospheric_harness.intents import ExecuteResult, RegisteredTool
 
 # ---------------------------------------------------------------------------
@@ -98,7 +99,7 @@ class TestUniformOptionPlacement:
         artifact = _make_artifact(tmp_path / "input.tif")
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {}, artifact, tmp_path)
+        executor.execute(tool, cmd, {}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         # argv: ["ese", "clip", "--output", <path>, "--input", <path>, "--json"]
@@ -126,7 +127,7 @@ class TestCommandTokenization:
         artifact = _make_artifact(tmp_path / "input.tif")
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {}, artifact, tmp_path)
+        executor.execute(tool, cmd, {}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         assert args[0] == "ese"
@@ -152,7 +153,7 @@ class TestParamSerialization:
         cmd = _make_command("clip", [_make_param("--bbox", "string")])
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"bbox": ["-121.5", "38.2"]}, None, tmp_path)
+        executor.execute(tool, cmd, {"bbox": ["-121.5", "38.2"]}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         bbox_idx = args.index("--bbox")
@@ -167,7 +168,7 @@ class TestParamSerialization:
         cmd = _make_command("clip", [_make_param("--bbox", "string")])
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"bbox": "-121.5,38.2"}, None, tmp_path)
+        executor.execute(tool, cmd, {"bbox": "-121.5,38.2"}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         bbox_idx = args.index("--bbox")
@@ -182,7 +183,7 @@ class TestParamSerialization:
         cmd = _make_command("clip", [_make_param("--flag", "array")])
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"flag": ["v1", "v2"]}, None, tmp_path)
+        executor.execute(tool, cmd, {"flag": ["v1", "v2"]}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         flag_idx = args.index("--flag")
@@ -206,7 +207,7 @@ class TestBooleanSerialization:
         cmd = _make_command("clip", [_make_param("--verbose", "boolean")])
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"verbose": True}, None, tmp_path)
+        executor.execute(tool, cmd, {"verbose": True}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         assert "--verbose" in args
@@ -222,7 +223,7 @@ class TestBooleanSerialization:
         cmd = _make_command("clip", [_make_param("--verbose", "boolean")])
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"verbose": False}, None, tmp_path)
+        executor.execute(tool, cmd, {"verbose": False}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         assert "--verbose" not in args
@@ -244,7 +245,7 @@ class TestNumericSerialization:
         cmd = _make_command("clip", [_make_param("--threshold", "integer")])
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"threshold": 500}, None, tmp_path)
+        executor.execute(tool, cmd, {"threshold": 500}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         tidx = args.index("--threshold")
@@ -267,7 +268,7 @@ class TestNameReverseMap:
         cmd = _make_command("clip", [_make_param("--min-area", "number")])
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"min_area": 100.0}, None, tmp_path)
+        executor.execute(tool, cmd, {"min_area": 100.0}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         assert "--min-area" in args
@@ -283,7 +284,7 @@ class TestNameReverseMap:
         cmd = _make_command("clip")  # no parameters defined
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"custom_flag": "value"}, None, tmp_path)
+        executor.execute(tool, cmd, {"custom_flag": "value"}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         assert "--custom-flag" in args
@@ -309,7 +310,7 @@ class TestInputRouting:
         artifact = _make_artifact(tmp_path / "in.tif")
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {}, artifact, tmp_path)
+        executor.execute(tool, cmd, {}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         # After binary + subcommand + --output, the positional arg should be next
@@ -328,7 +329,7 @@ class TestInputRouting:
         artifact = _make_artifact(tmp_path / "in.tif")
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {}, artifact, tmp_path)
+        executor.execute(tool, cmd, {}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         iidx = args.index("--input")
@@ -347,7 +348,7 @@ class TestInputRouting:
         artifact = _make_artifact(tmp_path / "pntr.tif")
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"_input_target": "d8-pntr"}, artifact, tmp_path)
+        executor.execute(tool, cmd, {"_input_target": "d8-pntr"}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         didx = args.index("--d8-pntr")
@@ -389,7 +390,7 @@ class TestJsonFlag:
         artifact = _make_artifact(tmp_path / "in.tif")
 
         executor = ToolExecutor()
-        executor.execute(tool, cmd, {"threshold": 10}, artifact, tmp_path)
+        executor.execute(tool, cmd, {"threshold": 10}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         args = mock_run.call_args[0][0]
         assert args[-1] == "--json"
@@ -414,12 +415,12 @@ class TestEnvelopeHandling:
         artifact = _make_artifact(tmp_path / "in.tif")
 
         executor = ToolExecutor()
-        result = executor.execute(tool, cmd, {}, artifact, tmp_path)
+        result = executor.execute(tool, cmd, {}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         assert isinstance(result, ExecuteResult)
         assert result.envelope["status"] == "success"
         assert result.returncode == 0
-        assert result.output_path.parent == tmp_path
+        assert result.output_path.parent.parent == tmp_path
 
     @patch("ecospheric_harness.executor.subprocess.run")
     def test_invalid_json_error_envelope(self, mock_run: MagicMock, tmp_path: Path) -> None:
@@ -434,7 +435,7 @@ class TestEnvelopeHandling:
         artifact = _make_artifact(tmp_path / "in.tif")
 
         executor = ToolExecutor()
-        result = executor.execute(tool, cmd, {}, artifact, tmp_path)
+        result = executor.execute(tool, cmd, {}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         assert result.envelope["status"] == "error"
         assert result.envelope["error"]["type"] == "internal_error"
@@ -451,7 +452,7 @@ class TestEnvelopeHandling:
         artifact = _make_artifact(tmp_path / "in.tif")
 
         executor = ToolExecutor()
-        result = executor.execute(tool, cmd, {}, artifact, tmp_path)
+        result = executor.execute(tool, cmd, {}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         assert result.envelope["status"] == "error"
         assert result.envelope["error"]["type"] == "timeout"
@@ -472,14 +473,14 @@ class TestEnvelopeHandling:
 
         executor = ToolExecutor(subprocess_timeout=600)
         result = executor.execute(
-            tool, cmd, {"bbox": ["-121", "38", "-120", "39"]}, artifact, tmp_path
+            tool, cmd, {"bbox": ["-121", "38", "-120", "39"]}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000)
         )
 
         assert result.envelope == envelope
         assert result.returncode == 0
         assert result.output_path.name.startswith("step_")
         assert result.output_path.name.endswith(".bin")
-        assert result.output_path.parent == tmp_path
+        assert result.output_path.parent.parent == tmp_path
 
 
 # ---------------------------------------------------------------------------
@@ -511,7 +512,7 @@ class TestErrorEnvelopeFields:
         cmd = _make_command("clip")
 
         executor = ToolExecutor()
-        result = executor.execute(tool, cmd, {}, None, tmp_path)
+        result = executor.execute(tool, cmd, {}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
 
         assert result.envelope["error"]["type"] == "validation_error"
         assert result.envelope["error"]["retryable"] is True

@@ -16,6 +16,7 @@ from ecospheric_harness.artifact import Artifact, ArtifactManager
 from ecospheric_harness.corrections import CorrectionHandler
 from ecospheric_harness.intents import ExecuteResult, PreflightResult, RegisteredTool
 from ecospheric_harness.preflight import PreflightChecker
+from ecospheric_harness.workspace import WorkspaceManager
 from ecospheric_harness.resolver import IntentResolver
 from ecospheric_harness.result import StepRecord
 
@@ -99,7 +100,7 @@ class MockExecutor:
         command: CommandDescriptor,
         params: dict[str, Any],
         input_artifact: Artifact | None,
-        workdir: Path,
+        workspace: "WorkspaceManager",
     ) -> ExecuteResult:
         self.call_count += 1
         self.last_params = params
@@ -141,7 +142,7 @@ class MockExecutor:
 class TestUndoAtStep2:
     def test_undo_reverts_to_step1(self, tmp_path: Path) -> None:
         """AC12: 2 steps, undo → step2 undone, current=step1, previous=None."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -153,7 +154,7 @@ class TestUndoAtStep2:
             steps=steps,
             executor=MockExecutor(tmp_path),  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         result = handler.undo()
@@ -174,7 +175,7 @@ class TestUndoAtStep2:
 class TestUndoAtStep1:
     def test_undo_with_no_previous_returns_error(self, tmp_path: Path) -> None:
         """AC14: 1 step, undo → error, pipeline continues."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         mgr.store(a1)
 
@@ -184,7 +185,7 @@ class TestUndoAtStep1:
             steps=steps,
             executor=MockExecutor(tmp_path),  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         result = handler.undo()
@@ -204,7 +205,7 @@ class TestRedoReplaceCurrent:
     def test_redo_replaces_current_artifact(self, tmp_path: Path) -> None:
         """AC13: 2 steps, redo → step2 marked undone, new step2' created,
         current=step2', previous=step1."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -218,7 +219,7 @@ class TestRedoReplaceCurrent:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         result = handler.redo(params={"to": "EPSG:4326"})
@@ -240,7 +241,7 @@ class TestRedoReplaceCurrent:
 class TestRedoPostUndo:
     def test_redo_after_undo(self, tmp_path: Path) -> None:
         """AC39: undo first, then redo → current=step2', previous=step1."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -254,7 +255,7 @@ class TestRedoPostUndo:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         # Undo first.
@@ -282,7 +283,7 @@ class TestRedoPostUndo:
 class TestUndoAfterRedo:
     def test_undo_after_redo(self, tmp_path: Path) -> None:
         """AC40: redo first, then undo → step2' undone, current=step1."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -296,7 +297,7 @@ class TestUndoAfterRedo:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         # Redo (replace-current path).
@@ -328,7 +329,7 @@ class TestUndoAfterRedo:
 class TestRedoFailure:
     def test_failed_redo_preserves_state(self, tmp_path: Path) -> None:
         """AC16: executor returns error → artifacts untouched, step state unchanged."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -342,7 +343,7 @@ class TestRedoFailure:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         # Snapshot pre-state.
@@ -364,7 +365,7 @@ class TestRedoFailure:
 class TestRedoFailureReturncode:
     def test_failed_redo_nonzero_returncode(self, tmp_path: Path) -> None:
         """Redo with nonzero returncode → error, state unchanged."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -379,7 +380,7 @@ class TestRedoFailureReturncode:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         result = handler.redo(params={})
@@ -398,7 +399,7 @@ class TestRedoFailureReturncode:
 class TestRedoNoPrevious:
     def test_redo_with_single_step_no_previous(self, tmp_path: Path) -> None:
         """AC15: 1 step, redo → error (no previous artifact)."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         mgr.store(a1)
 
@@ -410,7 +411,7 @@ class TestRedoNoPrevious:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         result = handler.redo(params={})
@@ -428,7 +429,7 @@ class TestRedoNoPrevious:
 class TestRedoNoSteps:
     def test_redo_with_empty_steps(self, tmp_path: Path) -> None:
         """No steps → error 'No step to redo'."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         steps: list[StepRecord] = []
         mock_exec = MockExecutor(tmp_path, succeed=True)
 
@@ -437,7 +438,7 @@ class TestRedoNoSteps:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         result = handler.redo(params={})
@@ -455,7 +456,7 @@ class TestRedoNoSteps:
 class TestProvenanceAfterCorrections:
     def test_provenance_excludes_undone_steps(self, tmp_path: Path) -> None:
         """AC17: provenance chain excludes undone steps after undo."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -467,7 +468,7 @@ class TestProvenanceAfterCorrections:
             steps=steps,
             executor=MockExecutor(tmp_path),  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         handler.undo()
@@ -478,7 +479,7 @@ class TestProvenanceAfterCorrections:
 
     def test_provenance_includes_redone_step(self, tmp_path: Path) -> None:
         """AC37: provenance includes the redone step, excludes undone originals."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -492,7 +493,7 @@ class TestProvenanceAfterCorrections:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         handler.redo(params={"to": "EPSG:4326"})
@@ -507,7 +508,7 @@ class TestProvenanceAfterCorrections:
 
     def test_provenance_after_undo_then_redo(self, tmp_path: Path) -> None:
         """AC37: undo then redo → provenance = [step1, step2']."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -521,7 +522,7 @@ class TestProvenanceAfterCorrections:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         handler.undo()
@@ -543,7 +544,7 @@ class TestAtomicity:
     def test_failed_redo_preserves_all_state(self, tmp_path: Path) -> None:
         """Atomicity: redo fails → artifacts.current(), previous(),
         and all step.undone flags unchanged."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         a3 = _make_artifact(tmp_path, "step3.bin", b"step3", step_number=3)
@@ -559,7 +560,7 @@ class TestAtomicity:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         # Full snapshot.
@@ -578,7 +579,7 @@ class TestAtomicity:
 
     def test_failed_redo_post_undo_preserves_state(self, tmp_path: Path) -> None:
         """Atomicity: post-undo redo fails → state unchanged after undo."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -592,7 +593,7 @@ class TestAtomicity:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         # Undo first.
@@ -623,7 +624,7 @@ class TestAtomicity:
 class TestRedoPreflightChecks:
     def test_redo_calls_preflight_planar_crs_check(self, tmp_path: Path) -> None:
         """Redo runs preflight.check_planar_crs before execute."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -641,7 +642,7 @@ class TestRedoPreflightChecks:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
             preflight=preflight,
         )
 
@@ -653,7 +654,7 @@ class TestRedoPreflightChecks:
 
     def test_redo_returns_error_when_preflight_fails(self, tmp_path: Path) -> None:
         """Redo returns error and doesn't execute when preflight fails."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -673,7 +674,7 @@ class TestRedoPreflightChecks:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
             preflight=preflight,
         )
 
@@ -688,7 +689,7 @@ class TestRedoPreflightChecks:
         self, tmp_path: Path,
     ) -> None:
         """Redo returns error when disk preflight fails."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -708,7 +709,7 @@ class TestRedoPreflightChecks:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
             preflight=preflight,
         )
 
@@ -720,7 +721,7 @@ class TestRedoPreflightChecks:
 
     def test_redo_without_preflight_works_as_before(self, tmp_path: Path) -> None:
         """Redo still works when no PreflightChecker is provided (backwards compat)."""
-        mgr = ArtifactManager(workdir=tmp_path, disk_limit_bytes=1_000_000)
+        mgr = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000), disk_limit_bytes=1_000_000)
         a1 = _make_artifact(tmp_path, "step1.bin", b"step1", step_number=1)
         a2 = _make_artifact(tmp_path, "step2.bin", b"step2", step_number=2)
         mgr.store(a1)
@@ -735,7 +736,7 @@ class TestRedoPreflightChecks:
             steps=steps,
             executor=mock_exec,  # type: ignore[arg-type]
             resolver=MagicMock(spec=IntentResolver),
-            workdir=tmp_path,
+            workspace=WorkspaceManager(tmp_path, disk_limit_bytes=1_000_000),
         )
 
         result = handler.redo(params={"to": "EPSG:4326"})

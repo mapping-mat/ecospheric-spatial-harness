@@ -28,6 +28,7 @@ from ecospheric_harness.registry import ToolRegistry
 from ecospheric_harness.resolver import IntentResolver
 from ecospheric_harness.result import PipelineResult, StepRecord
 from ecospheric_harness.validator import SchemaValidator
+from ecospheric_harness.workspace import WorkspaceManager
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +116,7 @@ class Orchestrator:
         preflight: PreflightChecker,
         corrections: CorrectionHandler,
         catalog: list[IntentEntry],
+        workspace: WorkspaceManager,
     ) -> None:
         self._config = config
         self._registry = registry
@@ -125,6 +127,7 @@ class Orchestrator:
         self._preflight = preflight
         self._corrections = corrections
         self._catalog = catalog
+        self._workspace = workspace
 
         self._steps: list[StepRecord] = []
         self._failed_redo_count: int = 0
@@ -243,31 +246,31 @@ class Orchestrator:
         """Handle complete/failed terminal intents.
 
         Persists provenance JSON, summary JSON, and copies the artifact
-        to workdir/output for downstream consumption.
+        to session_dir/output for downstream consumption.
         """
         result = self._build_result()
-        workdir = self._config.workdir
-        workdir.mkdir(parents=True, exist_ok=True)
+        session_dir = self._workspace.session_dir
+        session_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Write provenance JSON.
-        provenance_path = workdir / "provenance.json"
+        provenance_path = session_dir / "provenance.json"
         provenance_path.write_text(
             json.dumps(result.provenance_chain, indent=2),
             encoding="utf-8",
         )
 
         # 2. Write summary JSON.
-        summary_path = workdir / "summary.json"
+        summary_path = session_dir / "summary.json"
         summary_path.write_text(
             json.dumps({"summary": result.summary()}, indent=2),
             encoding="utf-8",
         )
 
-        # 3. Copy current artifact to workdir/output with appropriate extension.
+        # 3. Copy current artifact to session_dir/output with appropriate extension.
         current = self._artifacts.current
         if current is not None and current.path.exists():
             ext = _format_to_extension(current.format)
-            output_dir = workdir / "output"
+            output_dir = session_dir / "output"
             output_dir.mkdir(parents=True, exist_ok=True)
             dest = output_dir / f"result{ext}"
             shutil.copy2(current.path, dest)
@@ -354,7 +357,7 @@ class Orchestrator:
             resolved.command,
             resolved.params,
             self._artifacts.current,
-            self._config.workdir,
+            self._workspace,
         )
         duration_ms = int((time.monotonic() - t0) * 1000)
 

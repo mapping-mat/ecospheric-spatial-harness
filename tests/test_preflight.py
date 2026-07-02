@@ -9,6 +9,7 @@ from etp.describe import CommandDescriptor
 
 from ecospheric_harness.artifact import Artifact, ArtifactManager
 from ecospheric_harness.preflight import PreflightChecker
+from ecospheric_harness.workspace import WorkspaceManager
 
 
 # ---------------------------------------------------------------------------
@@ -19,8 +20,9 @@ from ecospheric_harness.preflight import PreflightChecker
 @pytest.fixture()
 def checker(tmp_workdir: Path) -> PreflightChecker:
     """Return a PreflightChecker backed by a 1 GB ArtifactManager."""
-    am = ArtifactManager(tmp_workdir, disk_limit_bytes=1024 * 1024 * 1024)
-    return PreflightChecker(am, tmp_workdir)
+    ws = WorkspaceManager(tmp_workdir, disk_limit_bytes=1024 * 1024 * 1024)
+    am = ArtifactManager(workspace=ws, disk_limit_bytes=1024 * 1024 * 1024)
+    return PreflightChecker(am, workspace=ws)
 
 
 @pytest.fixture()
@@ -217,7 +219,8 @@ class TestDiskCheckUsesCurrentBytes:
 
     def test_current_bytes_property(self, tmp_path: Path) -> None:
         """ArtifactManager.current_bytes returns only current artifact size."""
-        mgr = ArtifactManager(tmp_path, disk_limit_bytes=10_000_000)
+        ws = WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000)
+        mgr = ArtifactManager(workspace=ws, disk_limit_bytes=10_000_000)
 
         # No artifacts
         assert mgr.current_bytes == 0
@@ -245,7 +248,8 @@ class TestDiskCheckUsesCurrentBytes:
         """Disk check should pass when current_bytes + new fits, even if
         total_bytes + new would NOT fit (because previous will be freed)."""
         # Set up a small disk limit: 5000 bytes
-        mgr = ArtifactManager(tmp_path, disk_limit_bytes=5000)
+        ws = WorkspaceManager(tmp_path, disk_limit_bytes=5000)
+        mgr = ArtifactManager(workspace=ws, disk_limit_bytes=5000)
 
         # Store two artifacts: current=2000, previous=2000, total=4000
         p1 = tmp_path / "file1.bin"
@@ -262,7 +266,7 @@ class TestDiskCheckUsesCurrentBytes:
         # With old logic: total_bytes + 1500 = 5500 > 5000 → FAIL
         # With new logic: current_bytes + 1500 = 3500 < 5000 → PASS
         # (previous=2000 will be freed on next store)
-        checker = PreflightChecker(mgr, tmp_path)
+        checker = PreflightChecker(mgr, workspace=ws)
         result = checker.check_disk(estimated_bytes=1500)
         assert result.ok is True, (
             "Disk check should pass: current(2000) + new(1500) = 3500 < 5000, "
@@ -273,7 +277,8 @@ class TestDiskCheckUsesCurrentBytes:
         self, tmp_path: Path,
     ) -> None:
         """Disk check should fail when current_bytes + new truly exceeds limit."""
-        mgr = ArtifactManager(tmp_path, disk_limit_bytes=5000)
+        ws = WorkspaceManager(tmp_path, disk_limit_bytes=5000)
+        mgr = ArtifactManager(workspace=ws, disk_limit_bytes=5000)
 
         p1 = tmp_path / "file1.bin"
         p1.write_bytes(b"x" * 4000)
@@ -281,6 +286,6 @@ class TestDiskCheckUsesCurrentBytes:
         mgr.store(a1)
 
         # current=4000, limit=5000, remaining=1000. Request 2000 → should fail.
-        checker = PreflightChecker(mgr, tmp_path)
+        checker = PreflightChecker(mgr, workspace=ws)
         result = checker.check_disk(estimated_bytes=2000)
         assert result.ok is False
