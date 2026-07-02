@@ -282,6 +282,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=256,
         help="GDAL_CACHEMAX in MB (default: 256)",
     )
+    parser.add_argument(
+        "--eval",
+        action="store_true",
+        help="Run evaluation fixtures and print results",
+    )
+    parser.add_argument(
+        "--tag",
+        default=None,
+        help="Filter eval fixtures by tag (used with --eval)",
+    )
+    parser.add_argument(
+        "--fixture",
+        default=None,
+        help="Run a single eval fixture by name (used with --eval)",
+    )
     return parser
 
 
@@ -445,6 +460,65 @@ def main(argv: list[str] | None = None) -> int:
         )
         _dry_run(harness, args.prompt)
         return 0
+
+    # --eval
+    if args.eval:
+        from ecospheric_harness.eval.cases import FIXTURES
+        from ecospheric_harness.eval.runner import EvalRunner
+
+        fixtures = list(FIXTURES)
+
+        # Filter by --tag
+        if args.tag:
+            fixtures = [f for f in fixtures if args.tag in f.tags]
+            if not fixtures:
+                print(f"No fixtures found with tag '{args.tag}'", file=sys.stderr)
+                return 1
+
+        # Filter by --fixture name
+        if args.fixture:
+            fixtures = [f for f in fixtures if f.name == args.fixture]
+            if not fixtures:
+                print(f"No fixture found named '{args.fixture}'", file=sys.stderr)
+                return 1
+
+        import os
+
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        runner = EvalRunner(api_key=api_key)
+
+        print(f"Running {len(fixtures)} eval fixture(s)...")
+        results = runner.run_fixtures(fixtures)
+
+        # Print summary table
+        print()
+        header = f"{'Name':<40} {'Pass':>5} {'Steps':>6} {'Duration':>10} {'Assertions'}"
+        print(header)
+        print("-" * len(header))
+
+        total_pass = 0
+        for r in results:
+            status = "PASS" if r.passed else "FAIL"
+            step_count = len(r.steps)
+            dur = f"{r.duration_ms}ms"
+            # Show assertion summary
+            if r.error and "SKIPPED" in r.error:
+                assertion_summary = "SKIPPED"
+            else:
+                fails = [a for a in r.assertions if a.startswith("FAIL")]
+                if fails:
+                    assertion_summary = "; ".join(fails[:2])
+                    if len(fails) > 2:
+                        assertion_summary += f" (+{len(fails) - 2} more)"
+                else:
+                    assertion_summary = f"{len(r.assertions)} passed"
+            print(f"{r.fixture_name:<40} {status:>5} {step_count:>6} {dur:>10} {assertion_summary}")
+            if r.passed:
+                total_pass += 1
+
+        print()
+        print(f"Results: {total_pass}/{len(results)} passed")
+        return 0 if total_pass == len(results) else 1
 
     # Normal run requires a prompt
     if args.prompt is None:
