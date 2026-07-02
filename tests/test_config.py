@@ -12,7 +12,7 @@ from ecospheric_harness.config import HarnessConfig
 
 def test_defaults_match_spec() -> None:
     cfg = HarnessConfig()
-    assert cfg.model == "openrouter/z-ai/glm-5.2"
+    assert cfg.model == "z-ai/glm-5.2"
     assert cfg.tools == ["edd", "ese"]
     assert cfg.subprocess_timeout == 300
     assert cfg.disk_limit_gb == 2.0
@@ -33,7 +33,7 @@ def test_from_env_defaults() -> None:
     }
     with patch.dict(os.environ, env, clear=True):
         cfg = HarnessConfig.from_env()
-    assert cfg.model == "openrouter/z-ai/glm-5.2"
+    assert cfg.model == "z-ai/glm-5.2"
     assert cfg.tools == ["edd", "ese"]
     assert cfg.subprocess_timeout == 300
     assert cfg.disk_limit_gb == 2.0
@@ -78,5 +78,5 @@ def test_from_cli_overrides() -> None:
 
 def test_from_cli_none_values_ignored() -> None:
     cfg = HarnessConfig.from_cli(model=None, max_turns=10)
-    assert cfg.model == "openrouter/z-ai/glm-5.2"  # default preserved
+    assert cfg.model == "z-ai/glm-5.2"  # default preserved
     assert cfg.max_turns == 10

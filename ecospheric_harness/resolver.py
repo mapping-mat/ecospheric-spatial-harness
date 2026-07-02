@@ -75,7 +75,15 @@ class IntentResolver:
 
         candidates = result
 
-        # 3. Single candidate → direct resolution.
+        # 3. Inject source from catalog entry if available (e.g. "@osm").
+        # The model emits search_osm but shouldn't need to know the exact
+        # --source value (@osm vs osm). The catalog entry carries it.
+        source_val = getattr(candidates[0], "source", None)
+        if source_val is not None:
+            params = dict(params)  # don't mutate caller's dict
+            params["source"] = source_val
+
+        # 4. Single candidate → direct resolution.
         if len(candidates) == 1:
             return ResolvedCall(
                 tool=candidates[0].tool,
@@ -83,7 +91,7 @@ class IntentResolver:
                 params=params,
             )
 
-        # 4. Multiple candidates → deterministic precedence sort.
+        # 5. Multiple candidates → deterministic precedence sort.
         candidates.sort(key=lambda e: _TOOL_PRECEDENCE.get(e.tool.name, 99))
         return ResolvedCall(
             tool=candidates[0].tool,

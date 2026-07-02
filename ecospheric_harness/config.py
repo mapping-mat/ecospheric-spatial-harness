@@ -10,7 +10,7 @@ from pathlib import Path
 class HarnessConfig:
     """Configuration for the Ecospheric Agent Harness."""
 
-    model: str = "openrouter/z-ai/glm-5.2"
+    model: str = "z-ai/glm-5.2"
     tools: list[str] = field(default_factory=lambda: ["edd", "ese"])
     subprocess_timeout: int = 300
     disk_limit_gb: float = 2.0

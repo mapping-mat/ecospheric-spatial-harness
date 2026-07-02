@@ -25,9 +25,11 @@ from ecospheric_harness.intents import RegisteredTool
 # ---------------------------------------------------------------------------
 
 EDD_SEARCH_COMMANDS: list[dict[str, Any]] = [
-    # 9 search descriptors — one per EDD plugin source
+    # 9 search descriptors — one per EDD plugin source.
+    # Real EDD describe --all output uses name="search" (not "@ckan search").
+    # Source disambiguation is handled by positional pairing with plugins.
     {
-        "name": "@ckan search",
+        "name": "search",
         "description": "Search CKAN open data portal datasets",
         "category": "discovery",
         "parameters": [
@@ -48,7 +50,7 @@ EDD_SEARCH_COMMANDS: list[dict[str, Any]] = [
         "backends": [],
     },
     {
-        "name": "@earthquakes search",
+        "name": "search",
         "description": "Search earthquake event feeds",
         "category": "discovery",
         "parameters": [
@@ -70,7 +72,7 @@ EDD_SEARCH_COMMANDS: list[dict[str, Any]] = [
         "backends": [],
     },
     {
-        "name": "@firms search",
+        "name": "search",
         "description": "Search FIRMS fire hotspots",
         "category": "discovery",
         "parameters": [
@@ -92,7 +94,7 @@ EDD_SEARCH_COMMANDS: list[dict[str, Any]] = [
         "backends": [],
     },
     {
-        "name": "@gbif search",
+        "name": "search",
         "description": "Search GBIF species occurrence records",
         "category": "discovery",
         "parameters": [
@@ -114,7 +116,7 @@ EDD_SEARCH_COMMANDS: list[dict[str, Any]] = [
         "backends": [],
     },
     {
-        "name": "@geoboundaries search",
+        "name": "search",
         "description": "Search geoBoundaries admin boundaries",
         "category": "discovery",
         "parameters": [
@@ -135,7 +137,7 @@ EDD_SEARCH_COMMANDS: list[dict[str, Any]] = [
         "backends": [],
     },
     {
-        "name": "@opentopography search",
+        "name": "search",
         "description": "Search OpenTopography DEM datasets",
         "category": "discovery",
         "parameters": [
@@ -156,7 +158,7 @@ EDD_SEARCH_COMMANDS: list[dict[str, Any]] = [
         "backends": [],
     },
     {
-        "name": "@osm search",
+        "name": "search",
         "description": "Search OpenStreetMap features",
         "category": "discovery",
         "parameters": [
@@ -177,7 +179,7 @@ EDD_SEARCH_COMMANDS: list[dict[str, Any]] = [
         "backends": [],
     },
     {
-        "name": "@overture search",
+        "name": "search",
         "description": "Search Overture Maps features",
         "category": "discovery",
         "parameters": [
@@ -198,7 +200,7 @@ EDD_SEARCH_COMMANDS: list[dict[str, Any]] = [
         "backends": [],
     },
     {
-        "name": "@stac search",
+        "name": "search",
         "description": "Search STAC catalogs",
         "category": "discovery",
         "parameters": [
@@ -1039,25 +1041,37 @@ class TestSearchFallbackWithoutSources:
 
     @patch("ecospheric_harness.registry.subprocess.run")
     def test_search_intents_built_without_sources(self, mock_run: MagicMock) -> None:
-        """When sources={} (discover_sources failed), search intents still appear."""
+        """When sources={} (discover_sources failed), search commands still
+        appear in the catalog.  Without source prefixes to disambiguate,
+        they all collide on intent='search'."""
         mock_run.side_effect = _mock_subprocess_run
         tools = ToolRegistry.discover_tools(["edd"])
         # Empty sources — simulates discover_sources failure
         catalog = ToolRegistry.build_catalog(tools, {})
-        search_entries = [e for e in catalog if e.intent.startswith("search_")]
-        # Should still have 9 search intents derived from command names
+        search_entries = [e for e in catalog if e.intent == "search"]
         assert len(search_entries) == 9
 
     @patch("ecospheric_harness.registry.subprocess.run")
     def test_search_source_derived_from_prefix(self, mock_run: MagicMock) -> None:
-        """Source field is derived from command name even without source_lookup."""
+        """Source field is set from the sources dict (not command name)."""
         mock_run.side_effect = _mock_subprocess_run
         tools = ToolRegistry.discover_tools(["edd"])
-        catalog = ToolRegistry.build_catalog(tools, {})
+
+        # Without sources, search commands collide on intent='search'
+        # and have no source tag.
+        catalog_no_src = ToolRegistry.build_catalog(tools, {})
+        search_collisions = [e for e in catalog_no_src if e.intent == "search"]
+        assert len(search_collisions) == 9
+        for entry in search_collisions:
+            assert entry.source is None
+
+        # With sources provided, each search gets its unique intent + source.
+        sources = {"edd": [p["prefix"] for p in EDD_PLUGINS["data"]["plugins"]]}
+        catalog = ToolRegistry.build_catalog(tools, sources)
         search_entries = [e for e in catalog if e.intent.startswith("search_")]
+        assert len(search_entries) == 9
         for entry in search_entries:
             assert entry.source is not None
             assert entry.source.startswith("@")
-            # source should match the prefix parsed from command name
             expected_prefix = entry.intent.replace("search_", "")
             assert entry.source == f"@{expected_prefix}"

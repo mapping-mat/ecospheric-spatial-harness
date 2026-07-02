@@ -358,7 +358,7 @@ class TestPythonAPI:
 
         h = Harness()
         assert len(h.tools) == 2  # default edd + ese
-        assert h._config.model == "openrouter/z-ai/glm-5.2"
+        assert h._config.model == "z-ai/glm-5.2"
         assert h._config.max_turns == 20
         assert h._config.subprocess_timeout == 300
 
@@ -430,7 +430,7 @@ class TestModelOverride:
         from ecospheric_harness.__main__ import Harness
 
         h = Harness(tools=["edd"])
-        assert h._config.model == "openrouter/z-ai/glm-5.2"
+        assert h._config.model == "z-ai/glm-5.2"
 
 
 # ---------------------------------------------------------------------------

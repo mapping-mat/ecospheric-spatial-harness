@@ -51,7 +51,7 @@ class Harness:
         disk_limit_gb: float = 2.0,
         search_cap: int = 20,
         max_turns: int = 20,
-        model: str = "openrouter/z-ai/glm-5.2",
+        model: str = "z-ai/glm-5.2",
     ) -> None:
         tool_names = tools if tools is not None else ["edd", "ese"]
 
@@ -169,8 +169,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default="openrouter/z-ai/glm-5.2",
-        help="Model identifier (default: openrouter/z-ai/glm-5.2)",
+        default="z-ai/glm-5.2",
+        help="Model identifier (default: z-ai/glm-5.2)",
     )
     parser.add_argument(
         "--list-tools",

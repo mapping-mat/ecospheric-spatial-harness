@@ -242,23 +242,53 @@ class ToolRegistry:
         catalog: list[CatalogIntentEntry] = []
 
         for tool in tools:
-            # Build a lookup of source prefix → full prefix string
-            # e.g. {"@osm": "@osm", "@stac": "@stac", ...}
             tool_sources = sources.get(tool.name, [])
+            # Build a lookup of source prefix → full prefix string
+            # e.g. {"osm": "@osm", "stac": "@stac", ...}
             source_lookup: dict[str, str] = {
                 p.lstrip("@"): p for p in tool_sources
             }
 
+            # Positional index for pairing EDD search commands with sources.
+            # Real EDD describe output uses name="search" for all plugins;
+            # source disambiguation comes from the sources list (order
+            # matches edd describe --all output).
+            search_idx = 0
+
             for cmd in tool.commands:
-                # Detect search commands with source prefix
-                # Real shape: "@osm search", "@stac search", etc.
+                # Detect EDD search commands by name == "search".
+                # Real shape from ``edd describe --all``: name="search"
+                # (not "@osm search"). Source prefix is positional.
+                if cmd.name == "search" and tool_sources:
+                    if search_idx < len(tool_sources):
+                        source_prefix = tool_sources[search_idx]
+                        search_idx += 1
+                    else:
+                        source_prefix = "@unknown"
+
+                    prefix_name = source_prefix.lstrip("@")
+                    search_intent = f"search_{prefix_name}"
+                    req_params = cls._compute_required_params(cmd)
+                    catalog.append(
+                        CatalogIntentEntry(
+                            intent=search_intent,
+                            description=cmd.description,
+                            tool=tool,
+                            command=cmd,
+                            required_params=req_params,
+                            source=source_prefix,
+                        )
+                    )
+                    continue
+
+                # Legacy: detect search commands with source prefix in
+                # command name (e.g. "@osm search" — kept for forward
+                # compatibility if EDD changes its naming convention).
                 if cmd.name.startswith("@") and " " in cmd.name:
                     prefix_raw, op = cmd.name.split(" ", 1)
                     prefix_name = prefix_raw.lstrip("@")
 
                     if op == "search":
-                        # Use source_lookup for full prefix string if available,
-                        # otherwise derive directly from the command name.
                         source_prefix = source_lookup.get(prefix_name, f"@{prefix_name}")
                         search_intent = f"search_{prefix_name}"
                         req_params = cls._compute_required_params(cmd)
