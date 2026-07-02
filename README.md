@@ -1,4 +1,6 @@
-# Ecospheric Spatial Harness
+<p align="center"><img src="assets/ecospheric_03152024_2.png" width="120" alt="Ecospheric"></p>
+
+<h1 align="center">Ecospheric Spatial Harness</h1>
 
 Multi-turn LLM orchestration harness for ETP-compatible geospatial tools (EDD, ESE). The model orchestrates multi-step spatial pipelines — search, fetch, clip, reproject, analyze — while the harness enforces schema, chains tool I/O, manages intermediate artifacts, and supports conversational corrections (undo/redo).
 
