@@ -7,11 +7,11 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import httpx
 
-from ecospheric_harness.artifact import Artifact, ArtifactManager
+from ecospheric_harness.artifact_registry import ArtifactRecord, ArtifactRegistry
 from ecospheric_harness.config import HarnessConfig
 from ecospheric_harness.corrections import CorrectionHandler
 from ecospheric_harness.executor import ToolExecutor
@@ -23,7 +23,7 @@ from ecospheric_harness.intents import (
 )
 from ecospheric_harness.menu import available_intents
 from ecospheric_harness.preflight import PreflightChecker
-from ecospheric_harness.provenance import build_provenance_chain
+from ecospheric_harness.provenance import build_provenance_from_dag
 from ecospheric_harness.registry import ToolRegistry
 from ecospheric_harness.resolver import IntentResolver
 from ecospheric_harness.result import PipelineResult, StepRecord
@@ -72,12 +72,14 @@ Rules:
 6. To redo the last step with new params: emit_intent(intent="redo", params={{...}})
    Redo re-runs the SAME operation with different params. To do a DIFFERENT
    operation, use undo first, then emit the new intent.
-7. You have TWO artifacts: current and previous. Undo reverts to previous.
-   You cannot undo twice.
+7. Artifacts are named with stable IDs (e.g. clip_001, slope_002). The turn state
+   shows the 2 most recent artifacts in detail plus a compact list of all artifacts.
+   To use a specific past artifact as input, include `input_artifact_id` in params.
+   If no input_artifact_id is specified, the most recent artifact is used.
 8. Search results appear in turn state as "search_results". For STAC search,
    results are metadata — pass "results_file" to fetch as the "stac" param.
    For direct-data search (OSM, geoBoundaries), the output IS the artifact
-   and is stored in the sliding window. No fetch needed.
+   and is stored in the registry. No fetch needed.
    Search results from STAC are NOT artifacts.
 9. When complete: emit_intent(intent="complete", summary="...")
 10. If you cannot complete: emit_intent(intent="failed", reason="...")
@@ -115,18 +117,18 @@ class Orchestrator:
         resolver: IntentResolver,
         validator: SchemaValidator,
         executor: ToolExecutor,
-        artifacts: ArtifactManager,
+        artifact_registry: ArtifactRegistry,
         preflight: PreflightChecker,
         corrections: CorrectionHandler,
         catalog: list[IntentEntry],
         workspace: WorkspaceManager,
     ) -> None:
         self._config = config
-        self._registry = registry
+        self._tool_registry = registry
         self._resolver = resolver
         self._validator = validator
         self._executor = executor
-        self._artifacts = artifacts
+        self._artifact_registry = artifact_registry
         self._preflight = preflight
         self._corrections = corrections
         self._catalog = catalog
@@ -155,7 +157,8 @@ class Orchestrator:
             # 1-2. Build system prompt and tool definition.
             turn_state = self._build_turn_state("success", 0, "")
             system_prompt = self._build_system_prompt(turn_state)
-            intents = available_intents(self._catalog, self._artifacts.current, self._resolver)
+            current_artifact = self._artifact_registry.current
+            intents = available_intents(self._catalog, current_artifact, self._resolver)
             tool_def = self._build_emit_intent_tool(intents)
 
             # 3. Call model.
@@ -270,7 +273,7 @@ class Orchestrator:
         )
 
         # 3. Copy current artifact to session_dir/output with appropriate extension.
-        current = self._artifacts.current
+        current = self._artifact_registry.current
         if current is not None and current.path.exists():
             ext = _format_to_extension(current.format)
             output_dir = session_dir / "output"
@@ -301,12 +304,34 @@ class Orchestrator:
 
         Returns (None, None) on success, (None, error_turn) on failure.
         """
-        # a. Resolve.
-        resolved = self._resolver.resolve(intent, params, self._artifacts.current)
+        # a. Resolve input artifact
+        input_artifact: ArtifactRecord | None = None
+        input_artifact_id = params.pop("input_artifact_id", None)
+        
+        if input_artifact_id:
+            input_artifact = self._artifact_registry.resolve_input(input_artifact_id)
+            if input_artifact is None:
+                return None, self._make_error_turn(
+                    f"Artifact '{input_artifact_id}' not found", intent
+                )
+        else:
+            input_artifact = self._artifact_registry.current
+
+        # b. Resolve.
+        resolved = self._resolver.resolve(intent, params, input_artifact)
         if isinstance(resolved, ResolutionError):
             return None, self._make_error_turn(resolved.message, intent)
 
-        # b. Validate.
+        # c. Check idempotency cache (only if command is marked idempotent)
+        # For now, default all commands to idempotent=False (Phase 2 will classify)
+        # TODO: Check catalog for idempotent flag
+        # cached_id = self._artifact_registry.is_idempotent(...)
+        # if cached_id:
+        #     cached = self._artifact_registry.get(cached_id)
+        #     if cached:
+        #         return None, None  # Skip execution
+
+        # d. Validate.
         validation = self._validator.validate(resolved)
         if not validation.ok:
             self._steps.append(StepRecord(
@@ -322,8 +347,8 @@ class Orchestrator:
             ))
             return None, self._make_error_turn("; ".join(validation.errors), intent)
 
-        # c. Preflight.
-        crs_result = self._preflight.check_planar_crs(resolved.command, self._artifacts.current)
+        # e. Preflight.
+        crs_result = self._preflight.check_planar_crs(resolved.command, input_artifact)
         if not crs_result.ok:
             self._steps.append(StepRecord(
                 step_number=len(self._steps) + 1,
@@ -338,7 +363,7 @@ class Orchestrator:
             ))
             return None, self._make_error_turn(crs_result.error, intent)
 
-        disk_result = self._preflight.check_disk(input_artifact=self._artifacts.current)
+        disk_result = self._preflight.check_disk(input_artifact=input_artifact)
         if not disk_result.ok:
             self._steps.append(StepRecord(
                 step_number=len(self._steps) + 1,
@@ -353,7 +378,7 @@ class Orchestrator:
             ))
             return None, self._make_error_turn(disk_result.error, intent)
 
-        # c2. SSRF check.
+        # f. SSRF check.
         ssrf_result = self._preflight.check_ssrf(resolved.params)
         if not ssrf_result.ok:
             self._steps.append(StepRecord(
@@ -369,18 +394,18 @@ class Orchestrator:
             ))
             return None, self._make_error_turn(ssrf_result.error, intent)
 
-        # d. Execute.
+        # g. Execute.
         t0 = time.monotonic()
         exec_result = self._executor.execute(
             resolved.tool,
             resolved.command,
             resolved.params,
-            self._artifacts.current,
+            input_artifact,
             self._workspace,
         )
         duration_ms = int((time.monotonic() - t0) * 1000)
 
-        # e. Error envelope.
+        # h. Error envelope.
         if exec_result.envelope.get("status") != "success":
             error_msg = self._extract_error_message(exec_result.envelope)
             self._steps.append(StepRecord(
@@ -398,16 +423,47 @@ class Orchestrator:
             ))
             return None, self._make_error_turn(error_msg, intent)
 
-        # f. Success — build artifact and step record.
+        # i. Success — register artifact and build step record.
         step_number = len(self._steps) + 1
-        artifact = self._build_artifact(exec_result, step_number)
-
         data_type = exec_result.envelope.get("data", {}).get("data_type", "unknown")
-        # is_search: any intent starting with "search_" or metadata data_type.
+        fmt = exec_result.envelope.get("data", {}).get("format", "unknown")
         is_search = intent.startswith("search_") or data_type == "metadata"
-        # Artifact storage: store unless it's pure metadata (STAC search).
+
+        # Determine parent IDs
+        parent_ids: list[str] = []
+        if input_artifact is not None:
+            parent_ids = [input_artifact.artifact_id]
+
+        # Artifact registration: skip for pure metadata (STAC search)
         if data_type != "metadata":
-            self._artifacts.store(artifact)
+            self._artifact_registry.register(
+                path=exec_result.output_path,
+                format=fmt,
+                data_type=data_type,
+                crs=exec_result.envelope.get("data", {}).get("crs")
+                    or (exec_result.envelope.get("data", {}).get("crs_meta", {}) or {}).get("crs")
+                    or exec_result.envelope.get("data", {}).get("output_crs"),
+                bbox=exec_result.envelope.get("data", {}).get("bbox")
+                    or exec_result.envelope.get("data", {}).get("bounds")
+                    or exec_result.envelope.get("data", {}).get("extent"),
+                step_number=step_number,
+                envelope=exec_result.envelope,
+                parent_ids=parent_ids,
+                intent=intent,
+                tool_name=resolved.tool.name,
+                tool_version=resolved.tool.version,
+                command_name=resolved.command.name,
+                params=resolved.params,
+                duration_ms=duration_ms,
+                is_search=is_search,
+            )
+            # Record idempotency (for future use when commands are classified)
+            # self._artifact_registry.record_idempotent(
+            #     resolved.tool.name, resolved.tool.version,
+            #     resolved.command.name, resolved.params,
+            #     input_artifact.artifact_id if input_artifact else None,
+            #     new_artifact.artifact_id,
+            # )
 
         self._steps.append(StepRecord(
             step_number=step_number,
@@ -510,7 +566,7 @@ class Orchestrator:
     # ------------------------------------------------------------------
 
     def _build_system_prompt(self, turn_state: dict[str, Any]) -> str:
-        """Build the system prompt from rules 1-13 plus turn state JSON."""
+        """Build the system prompt from rules plus turn state JSON."""
         return f"{_RULES}\n{json.dumps(turn_state, indent=2)}"
 
     def _build_turn_state(
@@ -520,21 +576,39 @@ class Orchestrator:
         intent: str,
     ) -> dict[str, Any]:
         """Build the turn state dict sent to the model after each iteration."""
-        current = self._artifacts.current
-        current_artifact: dict[str, Any] | None = None
-        if current is not None:
+        # Recent artifacts (2 most recent, full detail)
+        recent = self._artifact_registry.get_recent(2)
+        recent_artifacts: list[dict[str, Any]] = []
+        for rec in recent:
             try:
-                size_mb = round(current.path.stat().st_size / (1024 * 1024), 2)
+                size_mb = round(rec.path.stat().st_size / (1024 * 1024), 2)
             except OSError:
                 size_mb = 0.0
-            current_artifact = {
-                "format": current.format,
-                "data_type": current.data_type,
-                "crs": current.crs,
-                "bbox": current.bbox,
+            recent_artifacts.append({
+                "artifact_id": rec.artifact_id,
+                "format": rec.format,
+                "data_type": rec.data_type,
+                "crs": rec.crs,
+                "bbox": rec.bbox,
                 "size_mb": size_mb,
-            }
+                "intent": rec.intent,
+                "step_number": rec.step_number,
+            })
 
+        # All artifacts (compact list)
+        all_artifacts = self._artifact_registry.list_all()
+        all_artifacts_compact: list[dict[str, Any]] = [
+            {
+                "artifact_id": rec.artifact_id,
+                "data_type": rec.data_type,
+                "format": rec.format,
+                "intent": rec.intent,
+                "step_number": rec.step_number,
+            }
+            for rec in all_artifacts
+        ]
+
+        current = self._artifact_registry.current
         intents = available_intents(self._catalog, current, self._resolver)
         intent_dicts = [
             {
@@ -547,9 +621,10 @@ class Orchestrator:
         ]
 
         turn: dict[str, Any] = {
-            "current_artifact": current_artifact,
+            "recent_artifacts": recent_artifacts,
+            "all_artifacts": all_artifacts_compact,
             "available_intents": intent_dicts,
-            "can_undo": self._artifacts.can_undo,
+            "can_undo": self._artifact_registry.can_undo,
             "last_result": {"status": status, "step": step, "intent": intent},
         }
 
@@ -594,7 +669,7 @@ class Orchestrator:
                         },
                         "params": {
                             "type": "object",
-                            "description": "Parameters for the operation.",
+                            "description": "Parameters for the operation. Include input_artifact_id to use a specific artifact.",
                             "additionalProperties": True,
                         },
                         "summary": {"type": "string"},
@@ -608,40 +683,6 @@ class Orchestrator:
     # ------------------------------------------------------------------
     # Artifact / search result helpers
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def _build_artifact(result: Any, step_number: int) -> Artifact:
-        """Construct an :class:`Artifact` from an execution result envelope.
-
-        Extracts format, data_type, CRS, and bbox from the envelope data
-        block on a best-effort basis.
-        """
-        data: dict[str, Any] = result.envelope.get("data", {})
-
-        fmt = data.get("format", "unknown")
-        data_type = data.get("data_type", "unknown")
-
-        # CRS: best-effort.
-        crs: str | None = (
-            data.get("crs")
-            or (data.get("crs_meta") or {}).get("crs")
-            or data.get("output_crs")
-        )
-
-        # Bbox: best-effort.
-        bbox: list[float] | None = (
-            data.get("bbox") or data.get("bounds") or data.get("extent")
-        )
-
-        return Artifact(
-            path=result.output_path,
-            envelope=result.envelope,
-            format=fmt,
-            data_type=data_type,
-            crs=crs,
-            bbox=bbox,
-            step_number=step_number,
-        )
 
     def _build_search_turn_state(
         self,
@@ -691,12 +732,22 @@ class Orchestrator:
 
     def _build_result(self) -> PipelineResult:
         """Build the final :class:`PipelineResult`."""
+        current = self._artifact_registry.current
+        
+        # Build provenance from DAG
+        artifacts_dict: dict[str, ArtifactRecord] = {
+            rec.artifact_id: rec
+            for rec in self._artifact_registry.list_all()
+        }
+        provenance_chain = build_provenance_from_dag(
+            artifacts_dict,
+            current.artifact_id if current else None,
+        )
+
         return PipelineResult(
             steps=list(self._steps),
-            final_artifact=self._artifacts.current,
-            provenance_chain=build_provenance_chain(
-                cast("list[Any]", self._steps),
-            ),
+            final_artifact=current,
+            provenance_chain=provenance_chain,
         )
 
     @staticmethod

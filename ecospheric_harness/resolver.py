@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from ecospheric_harness.artifact import Artifact
+from ecospheric_harness.artifact_registry import ArtifactRecord
 from ecospheric_harness.intents import (
     IntentEntry,
     ResolvedCall,
@@ -30,7 +31,7 @@ class IntentResolver:
         self,
         intent: str,
         params: dict[str, Any],
-        current_artifact: Artifact | None,
+        current_artifact: Artifact | ArtifactRecord | None,
     ) -> ResolvedCall | ResolutionError:
         """Resolve *intent* to a concrete tool call.
 
@@ -105,7 +106,7 @@ class IntentResolver:
     def _filter_with_artifact(
         candidates: list[IntentEntry],
         intent: str,
-        artifact: Artifact,
+        artifact: Artifact | ArtifactRecord,
     ) -> list[IntentEntry] | ResolutionError:
         """Filter candidates when an artifact is present."""
         # Primary: exact data_type match.

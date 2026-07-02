@@ -1,7 +1,7 @@
 """Integration tests for the Ecospheric Agent Harness.
 
 Uses mocked subprocess (for tools) and mocked httpx (for model) but
-real ArtifactManager, CorrectionHandler, PreflightChecker, IntentResolver,
+real ArtifactRegistry, CorrectionHandler, PreflightChecker, IntentResolver,
 ToolRegistry, SchemaValidator, and Orchestrator.
 """
 
@@ -15,7 +15,8 @@ from unittest.mock import MagicMock, patch
 
 from etp.describe import CommandDescriptor, ParameterDescriptor
 
-from ecospheric_harness.artifact import Artifact, ArtifactManager
+from ecospheric_harness.artifact import Artifact
+from ecospheric_harness.artifact_registry import ArtifactRegistry
 from ecospheric_harness.config import HarnessConfig
 from ecospheric_harness.corrections import CorrectionHandler
 from ecospheric_harness.executor import ToolExecutor
@@ -168,21 +169,22 @@ def _build_orchestrator(
     *,
     search_cap: int = 20,
     disk_limit_bytes: int = 10_000_000,
-) -> tuple[Orchestrator, ArtifactManager]:
+) -> tuple[Orchestrator, ArtifactRegistry]:
     config = HarnessConfig(model="test", search_cap=search_cap, workspace_root=tmp_path)
-    artifacts = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=disk_limit_bytes), disk_limit_bytes=disk_limit_bytes)
+    ws = WorkspaceManager(tmp_path, disk_limit_bytes=disk_limit_bytes)
+    artifact_registry = ArtifactRegistry(workspace=ws, disk_limit_bytes=disk_limit_bytes)
     resolver = IntentResolver(catalog)
     executor = ToolExecutor()
     shared_steps: list[StepRecord] = []
     ws_integ = WorkspaceManager(tmp_path, disk_limit_bytes=disk_limit_bytes)
-    corrections = CorrectionHandler(artifacts, shared_steps, executor, resolver, workspace=ws_integ)
+    corrections = CorrectionHandler(artifact_registry, shared_steps, executor, resolver, workspace=ws_integ)
     orch = Orchestrator(
         config=config,
         registry=ToolRegistry(),
         resolver=resolver,
         validator=MagicMock(validate=MagicMock(return_value=MagicMock(ok=True, errors=[]))),
         executor=executor,
-        artifacts=artifacts,
+        artifact_registry=artifact_registry,
         preflight=MagicMock(
             check_planar_crs=MagicMock(return_value=MagicMock(ok=True)),
             check_disk=MagicMock(return_value=MagicMock(ok=True)),
@@ -193,7 +195,7 @@ def _build_orchestrator(
     )
     # Share the same steps list between orchestrator and corrections handler.
     orch._steps = shared_steps
-    return orch, artifacts
+    return orch, artifact_registry
 
 
 def _orch_run(
@@ -381,7 +383,7 @@ class TestPlanarCRSRejection:
         art = _artifact(tmp_path, "a.bin", crs="EPSG:4326")
         cmd = _cmd("distance", requires_planar_crs=True)
         checker = PreflightChecker(
-            artifacts=MagicMock(), workspace=WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000),
+            registry=MagicMock(), workspace=WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000),
         )
         result = checker.check_planar_crs(cmd, art)
 
@@ -400,8 +402,8 @@ class TestDiskLimitRejection:
         art.path.write_bytes(b"x" * 2000)
 
         ws = WorkspaceManager(tmp_path, disk_limit_bytes=500)
-        mgr = ArtifactManager(workspace=ws, disk_limit_bytes=500)
-        checker = PreflightChecker(artifacts=mgr, workspace=ws)
+        registry = ArtifactRegistry(workspace=ws, disk_limit_bytes=500)
+        checker = PreflightChecker(registry=registry, workspace=ws)
 
         result = checker.check_disk(input_artifact=art)
 

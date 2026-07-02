@@ -1,8 +1,7 @@
 """Undo/redo correction handler for the Ecospheric Agent Harness.
 
-Implements atomic undo and redo operations over a two-artifact sliding window,
-with two redo paths: replace-current (no undo before redo) and post-undo
-(undo was performed first).
+Implements undo and redo operations over the artifact registry,
+with the new named artifact system.
 """
 
 from __future__ import annotations
@@ -10,43 +9,35 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from ecospheric_harness.artifact import Artifact, ArtifactManager
+from ecospheric_harness.artifact_registry import ArtifactRegistry
 from ecospheric_harness.executor import ToolExecutor
-from ecospheric_harness.intents import CorrectionResult, ExecuteResult
+from ecospheric_harness.intents import CorrectionResult
 from ecospheric_harness.preflight import PreflightChecker
 from ecospheric_harness.resolver import IntentResolver
 from ecospheric_harness.result import StepRecord
 from ecospheric_harness.workspace import WorkspaceManager
 
-# etp types used for _build_artifact signature
-from etp.describe import CommandDescriptor
+# etp types used for signatures
+from etp.describe import CommandDescriptor  # noqa: F401
 
 
 class CorrectionHandler:
-    """Handles undo/redo corrections over the pipeline artifact window.
+    """Handles undo/redo corrections over the pipeline artifact registry.
 
-    Redo has two paths depending on whether an undo was performed first:
-
-    1. **Replace-current** (no undo before redo): The target step is the
-       current one. Input = previous. The old current is freed and replaced.
-       Previous stays intact.
-    2. **Post-undo** (undo was done first): The target step is the last
-       undone step. Input = current (which is the previous artifact after
-       undo). The window shifts: current→previous, new→current.
-
-    Both paths execute into a fresh temp file and only mutate state on success.
+    With the named artifact registry, undo marks the most recent non-undone
+    artifact as undone. Redo re-executes the last undone step with new params.
     """
 
     def __init__(
         self,
-        artifacts: ArtifactManager,
+        registry: ArtifactRegistry,
         steps: list[StepRecord],
         executor: ToolExecutor,
         resolver: IntentResolver,
         workspace: WorkspaceManager,
         preflight: PreflightChecker | None = None,
     ) -> None:
-        self._artifacts = artifacts
+        self._registry = registry
         self._steps = steps
         self._executor = executor
         self._resolver = resolver
@@ -54,38 +45,50 @@ class CorrectionHandler:
         self._preflight = preflight
 
     def undo(self) -> CorrectionResult:
-        """Revert the last successful step.
+        """Mark the most recent non-undone artifact as undone.
 
         Returns ``CorrectionResult(status="undone", ...)`` on success or
         ``CorrectionResult(status="error", ...)`` when there is nothing to
         undo.
         """
-        if not self._artifacts.can_undo:
+        if not self._registry.can_undo:
             return CorrectionResult(
                 status="error",
                 artifact=None,
-                message="Cannot undo — no previous artifact to revert to",
+                message="Cannot undo — no artifacts to undo",
             )
 
-        # Mark last successful non-undone step as undone.
+        # Find the most recent non-undone artifact
+        recent = self._registry.get_recent(1)
+        if not recent:
+            return CorrectionResult(
+                status="error",
+                artifact=None,
+                message="Cannot undo — no active artifact found",
+            )
+
+        artifact = recent[0]
+        # Mark as undone
+        self._registry.mark_undone(artifact.artifact_id)
+
+        # Mark last successful non-undone step as undone
         for step in reversed(self._steps):
             if step.status == "success" and not step.undone:
                 step.undone = True
                 break
 
-        restored = self._artifacts.undo()
-        return CorrectionResult(status="undone", artifact=restored, message="")
+        return CorrectionResult(status="undone", artifact=artifact, message="")
 
     def redo(self, params: dict[str, Any]) -> CorrectionResult:
-        """Re-execute the last step with new params.
+        """Re-execute the last undone step with new params.
 
         Atomic — a failed execution leaves artifacts and step state
         completely unchanged.
         """
-        # 1. Find the last successful step (undone or not).
+        # 1. Find the last undone step
         target: StepRecord | None = None
         for step in reversed(self._steps):
-            if step.status == "success":
+            if step.undone:
                 target = step
                 break
 
@@ -93,30 +96,17 @@ class CorrectionHandler:
             return CorrectionResult(
                 status="error",
                 artifact=None,
-                message="No step to redo",
+                message="No undone step to redo",
             )
 
-        # 2. Determine input artifact and mutation strategy.
-        if target.undone:
-            # POST-UNDO path: input is current (which was previous before undo).
-            input_artifact = self._artifacts.current
-            if input_artifact is None:
-                return CorrectionResult(
-                    status="error",
-                    artifact=None,
-                    message="No input artifact for redo",
-                )
-            use_store = True
-        else:
-            # REPLACE-CURRENT path: input is previous.
-            input_artifact = self._artifacts.previous
-            if input_artifact is None:
-                return CorrectionResult(
-                    status="error",
-                    artifact=None,
-                    message="No input artifact for redo",
-                )
-            use_store = False
+        # 2. Get the input artifact (the most recent non-undone)
+        input_artifact = self._registry.current
+        if input_artifact is None:
+            return CorrectionResult(
+                status="error",
+                artifact=None,
+                message="No input artifact for redo",
+            )
 
         # 3. Execute into a fresh temp path — don't touch artifacts yet.
         #    First run preflight checks if a PreflightChecker is available.
@@ -163,22 +153,32 @@ class CorrectionHandler:
             )
 
         # 5. SUCCESS — atomically mutate state.
-        if not target.undone:
-            # Replace-current path: mark old step as undone.
-            target.undone = True
+        # Keep the target step marked as undone — the new step replaces it in provenance.
+        # (Don't clear target.undone; the new step carries the redo result.)
 
-        new_artifact = self._build_artifact(
-            result, target.command_ref, step_number=len(self._steps) + 1,
+        # Register new artifact
+        new_artifact = self._registry.register(
+            path=result.output_path,
+            format=result.envelope.get("data", {}).get("format", "unknown"),
+            data_type=result.envelope.get("data", {}).get("data_type", "unknown"),
+            crs=result.envelope.get("data", {}).get("crs")
+                or (result.envelope.get("data", {}).get("crs_meta", {}) or {}).get("crs")
+                or result.envelope.get("data", {}).get("output_crs"),
+            bbox=result.envelope.get("data", {}).get("bbox")
+                or result.envelope.get("data", {}).get("bounds")
+                or result.envelope.get("data", {}).get("extent"),
+            step_number=len(self._steps) + 1,
+            envelope=result.envelope,
+            parent_ids=[input_artifact.artifact_id] if input_artifact else [],
+            intent=target.intent,
+            tool_name=target.tool,
+            tool_version=getattr(target.tool_ref, "version", "") if target.tool_ref else "",
+            command_name=target.command,
+            params=params,
+            duration_ms=duration_ms,
         )
 
-        if use_store:
-            # Post-undo: shift window (current→previous, new→current).
-            self._artifacts.store(new_artifact)
-        else:
-            # Replace-current: swap current, keep previous.
-            self._artifacts.replace_current(new_artifact)
-
-        # Append a new StepRecord for the redone step.
+        # Append a new StepRecord for the redone step
         self._steps.append(StepRecord(
             step_number=new_artifact.step_number,
             tool=target.tool,
@@ -195,39 +195,3 @@ class CorrectionHandler:
         ))
 
         return CorrectionResult(status="redone", artifact=new_artifact, message="")
-
-    def _build_artifact(
-        self,
-        result: ExecuteResult,
-        command: CommandDescriptor,
-        step_number: int,
-    ) -> Artifact:
-        """Construct an :class:`Artifact` from an execution result envelope."""
-        data: dict[str, Any] = result.envelope.get("data", {})
-
-        fmt = data.get("format", "unknown")
-        data_type = data.get("data_type", "unknown")
-
-        # CRS: best-effort extraction.
-        crs: str | None = (
-            data.get("crs")
-            or (data.get("crs_meta", {}) or {}).get("crs")
-            or data.get("output_crs")
-        )
-
-        # Bounding box: best-effort extraction.
-        bbox: list[float] | None = (
-            data.get("bbox")
-            or data.get("bounds")
-            or data.get("extent")
-        )
-
-        return Artifact(
-            path=result.output_path,
-            envelope=result.envelope,
-            format=fmt,
-            data_type=data_type,
-            crs=crs,
-            bbox=bbox,
-            step_number=step_number,
-        )

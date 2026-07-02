@@ -57,9 +57,13 @@ class CatalogIntentEntry(IntentEntry):
 
     The source field is set for EDD search commands that have been paired
     with a specific data-source prefix (e.g. ``@osm``, ``@stac``).
+    
+    The idempotent field indicates whether the command can be cached
+    (Phase 2 will classify commands, default False for now).
     """
 
     source: str | None = None
+    idempotent: bool = False
 
 
 # ---------------------------------------------------------------------------

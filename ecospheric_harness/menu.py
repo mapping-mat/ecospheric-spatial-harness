@@ -16,6 +16,7 @@ from ecospheric_harness.registry import PARAM_DENYLIST
 
 if TYPE_CHECKING:
     from ecospheric_harness.artifact import Artifact
+    from ecospheric_harness.artifact_registry import ArtifactRecord
     from ecospheric_harness.resolver import IntentResolver
 
 _EXCLUDED_CATEGORIES: frozenset[str] = frozenset({
@@ -29,8 +30,8 @@ _MAX_OPTIONS: int = 15
 
 def available_intents(
     catalog: list[IntentEntry],
-    artifact: Artifact | None,
-    resolver: IntentResolver,
+    artifact: "Artifact | ArtifactRecord | None",
+    resolver: "IntentResolver",
 ) -> list[IntentOption]:
     """Return intent options compatible with *artifact*.
 

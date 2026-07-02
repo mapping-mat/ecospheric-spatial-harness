@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 from etp.describe import CommandDescriptor, ParameterDescriptor
 
-from ecospheric_harness.artifact import ArtifactManager
+from ecospheric_harness.artifact_registry import ArtifactRegistry
 from ecospheric_harness.config import HarnessConfig
 from ecospheric_harness.corrections import CorrectionHandler
 from ecospheric_harness.executor import ToolExecutor
@@ -60,7 +60,8 @@ def _make_mock_orchestrator(
     resolver = MagicMock(spec=IntentResolver)
     validator = MagicMock(spec=SchemaValidator)
     executor = MagicMock(spec=ToolExecutor)
-    artifacts = ArtifactManager(workspace=WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000), disk_limit_bytes=10_000_000)
+    ws = WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000)
+    artifact_registry = ArtifactRegistry(workspace=ws, disk_limit_bytes=10_000_000)
     preflight = MagicMock(spec=PreflightChecker)
     corrections = MagicMock(spec=CorrectionHandler)
 
@@ -118,13 +119,13 @@ def _make_mock_orchestrator(
         resolver=resolver,
         validator=validator,
         executor=executor,
-        artifacts=artifacts,
+        artifact_registry=artifact_registry,
         preflight=preflight,
         corrections=corrections,
         catalog=catalog,
-        workspace=WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000),
+        workspace=ws,
     )
-    return orch, artifacts, resolver, corrections
+    return orch, artifact_registry, resolver, corrections
 
 
 def _make_model_response(intent: str, **extra: Any) -> dict[str, Any]:
@@ -247,8 +248,7 @@ class TestTwoStepPipeline:
 
         assert len(result.steps) == 2
         assert artifacts.current is not None
-        assert artifacts.previous is not None
-        assert artifacts.current is not artifacts.previous
+        assert len(artifacts.list_all()) >= 2
         assert result.final_artifact is artifacts.current
         assert len(result.provenance_chain) == 2
 
@@ -570,16 +570,12 @@ class TestCanUndoInTurnState:
         with patch.object(Orchestrator, "_build_turn_state", capture_turn_state):
             orch.run("test")
 
-        # After step 1: can_undo = False (only one artifact in window).
-        # turn_states layout:
-        #   [0] pre-step1 (loop start iter 0)
-        #   [1] post-step1 (after dispatch, tool message appended)
-        #   [2] pre-step2 (loop start iter 1)
-        #   [3] post-step2 (after dispatch, can_undo = True)
+        # After step 1: can_undo = True (first artifact exists and is non-undone).
+        # After step 2: can_undo = True (both artifacts exist).
         state_after_step1 = turn_states[1]
-        assert state_after_step1["can_undo"] is False
+        assert state_after_step1["can_undo"] is True
 
-        # After step 2: can_undo = True (previous exists).
+        # After step 2: can_undo = True
         state_after_step2 = turn_states[3]
         assert state_after_step2["can_undo"] is True
 

@@ -15,6 +15,7 @@ from typing import Any
 from etp.describe import CommandDescriptor, ParameterDescriptor
 
 from ecospheric_harness.artifact import Artifact
+from ecospheric_harness.artifact_registry import ArtifactRecord
 from ecospheric_harness.intents import ExecuteResult, RegisteredTool
 from ecospheric_harness.security import SubprocessHardener, check_ssrf
 from ecospheric_harness.workspace import PathConfinementError, WorkspaceManager
@@ -85,7 +86,7 @@ class ToolExecutor:
         tool: RegisteredTool,
         command: CommandDescriptor,
         params: dict[str, Any],
-        input_artifact: Artifact | None,
+        input_artifact: Artifact | ArtifactRecord | None,
         workspace: WorkspaceManager,
     ) -> ExecuteResult:
         """Execute a tool command and return the result.
@@ -255,7 +256,7 @@ class ToolExecutor:
 
     def _route_input(
         self,
-        input_artifact: Artifact,
+        input_artifact: Artifact | ArtifactRecord,
         command: CommandDescriptor,
         params: dict[str, Any],
     ) -> list[str]:

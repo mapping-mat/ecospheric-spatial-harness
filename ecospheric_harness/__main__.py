@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-from ecospheric_harness.artifact import ArtifactManager
+from ecospheric_harness.artifact_registry import ArtifactRegistry
 from ecospheric_harness.config import HarnessConfig
 from ecospheric_harness.corrections import CorrectionHandler
 from ecospheric_harness.executor import ToolExecutor
@@ -87,6 +87,12 @@ class Harness:
             session_id=self._config.session_id,
         )
 
+        # Create ArtifactRegistry
+        self._artifact_registry = ArtifactRegistry(
+            workspace=self._workspace,
+            disk_limit_bytes=disk_limit_bytes,
+        )
+
         # Create SubprocessHardener from config
         limits = SubprocessLimits(
             wall_clock_timeout=subprocess_timeout,
@@ -127,16 +133,12 @@ class Harness:
         self._resolver = IntentResolver(self._catalog)
         self._validator = SchemaValidator()
         self._executor = ToolExecutor(hardener=hardener)
-        self._artifacts = ArtifactManager(
-            workspace=self._workspace,
-            disk_limit_bytes=disk_limit_bytes,
-        )
         self._preflight = PreflightChecker(
-            artifacts=self._artifacts,
+            registry=self._artifact_registry,
             workspace=self._workspace,
         )
         self._corrections = CorrectionHandler(
-            artifacts=self._artifacts,
+            registry=self._artifact_registry,
             steps=[],  # shared mutable list — orchestrator appends to it
             executor=self._executor,
             resolver=self._resolver,
@@ -150,7 +152,7 @@ class Harness:
             resolver=self._resolver,
             validator=self._validator,
             executor=self._executor,
-            artifacts=self._artifacts,
+            artifact_registry=self._artifact_registry,
             preflight=self._preflight,
             corrections=self._corrections,
             catalog=self._catalog,
@@ -181,7 +183,8 @@ class Harness:
     @property
     def intents(self) -> list[IntentOption]:
         """Return the available intent options for the current state."""
-        return available_intents(self._catalog, self._artifacts.current, self._resolver)
+        current = self._artifact_registry.current
+        return available_intents(self._catalog, current, self._resolver)
 
 
 # ---------------------------------------------------------------------------
@@ -337,8 +340,9 @@ def _dry_run(harness: Harness, prompt: str) -> None:
     from ecospheric_harness.intents import OperationIntent
 
     if isinstance(parsed, OperationIntent):
+        current = harness._artifact_registry.current
         resolved = harness._resolver.resolve(
-            parsed.intent, parsed.params, harness._artifacts.current,
+            parsed.intent, parsed.params, current,
         )
         from ecospheric_harness.intents import ResolutionError
 

@@ -8,7 +8,8 @@ import pyproj
 from etp.describe import CommandDescriptor
 from pyproj.exceptions import CRSError
 
-from ecospheric_harness.artifact import Artifact, ArtifactManager
+from ecospheric_harness.artifact import Artifact
+from ecospheric_harness.artifact_registry import ArtifactRecord, ArtifactRegistry
 from ecospheric_harness.intents import PreflightResult
 from ecospheric_harness.security import check_ssrf as _check_ssrf_url
 from ecospheric_harness.workspace import WorkspaceManager
@@ -18,9 +19,9 @@ class PreflightChecker:
     """Validates that a command can safely execute on the available resources."""
 
     def __init__(
-        self, artifacts: ArtifactManager, workspace: WorkspaceManager
+        self, registry: ArtifactRegistry, workspace: WorkspaceManager
     ) -> None:
-        self._artifacts = artifacts
+        self._registry = registry
         self._workspace = workspace
 
     # ------------------------------------------------------------------
@@ -30,7 +31,7 @@ class PreflightChecker:
     def check_planar_crs(
         self,
         command: CommandDescriptor,
-        artifact: Artifact | None,
+        artifact: Artifact | ArtifactRecord | None,
     ) -> PreflightResult:
         """Verify that *artifact*'s CRS is planar when the command requires it."""
         if not command.requires_planar_crs:
@@ -80,14 +81,12 @@ class PreflightChecker:
     def check_disk(
         self,
         estimated_bytes: int = 0,
-        input_artifact: Artifact | None = None,
+        input_artifact: Artifact | ArtifactRecord | None = None,
         expansion_factor: float = 2.0,
     ) -> PreflightResult:
         """Verify that *estimated_bytes* (or a derived estimate) fit on disk.
 
-        Uses ``current_bytes`` (current artifact only) rather than
-        ``total_bytes`` because ``previous`` will be freed on the next
-        ``store()`` call.
+        Uses registry's bytes_used and disk_limit for accounting.
         """
         if estimated_bytes == 0 and input_artifact is not None:
             estimate = int(input_artifact.path.stat().st_size * expansion_factor)
@@ -96,12 +95,11 @@ class PreflightChecker:
         else:
             estimate = estimated_bytes
 
-        # Projected disk usage after next store(): current_bytes + new estimate.
-        # (previous will be freed, so total_bytes overcounts.)
-        projected = self._artifacts.current_bytes + estimate
-        if projected >= self._artifacts.disk_limit:
-            current_mb = self._artifacts.current_bytes / (1024 * 1024)
-            limit_mb = self._artifacts.disk_limit / (1024 * 1024)
+        # Projected disk usage: bytes_used + new estimate
+        projected = self._registry.bytes_used + estimate
+        if projected >= self._registry._disk_limit:
+            current_mb = self._registry.bytes_used / (1024 * 1024)
+            limit_mb = self._registry._disk_limit / (1024 * 1024)
             return PreflightResult(
                 ok=False,
                 error=(
@@ -138,3 +136,11 @@ class PreflightChecker:
                     error=f"URL in param '{key}' is blocked: {exc}",
                 )
         return PreflightResult(ok=True)
+
+    # ------------------------------------------------------------------
+    # Disk availability (delegating to registry)
+    # ------------------------------------------------------------------
+
+    def check_disk_available(self, estimated_bytes: int = 0) -> bool:
+        """Check if estimated_bytes fit within the disk limit."""
+        return self._registry.bytes_used + estimated_bytes < self._registry._disk_limit
