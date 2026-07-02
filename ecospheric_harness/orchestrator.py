@@ -515,7 +515,12 @@ class Orchestrator:
 
         intents = available_intents(self._catalog, current, self._resolver)
         intent_dicts = [
-            {"intent": i.intent, "description": i.description, "required_params": i.required_params}
+            {
+                "intent": i.intent,
+                "description": i.description,
+                "required_params": i.required_params,
+                "params": i.params,
+            }
             for i in intents
         ]
 

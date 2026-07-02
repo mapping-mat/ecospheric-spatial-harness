@@ -102,6 +102,18 @@ def available_intents(
             p for p in entry.required_params if p not in PARAM_DENYLIST
         ]
 
+        # Build param descriptors for the model (non-denylisted)
+        param_descriptors = []
+        for p in entry.command.parameters:
+            if p.name in PARAM_DENYLIST:
+                continue
+            param_descriptors.append({
+                "name": p.name,
+                "type": p.type,
+                "description": p.description,
+                "required": p.required,
+            })
+
         options.append(IntentOption(
             intent=entry.intent,
             description=entry.description,
@@ -109,6 +121,7 @@ def available_intents(
             tool=entry.tool.name,
             command=entry.command.name,
             data_type=entry.command.data_type,
+            params=param_descriptors,
         ))
 
     # Step 8: cap at 15
