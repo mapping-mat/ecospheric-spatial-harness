@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx  # kept for backward-compat with test patching (see _call_model)
 
 from ecospheric_harness.artifact_registry import ArtifactRecord, ArtifactRegistry
 from ecospheric_harness.params import normalize_params
@@ -30,6 +30,7 @@ from ecospheric_harness.resolver import IntentResolver
 from ecospheric_harness.result import PipelineResult, StepRecord
 from ecospheric_harness.validator import SchemaValidator
 from ecospheric_harness.workspace import WorkspaceManager
+from ecospheric_harness.providers.base import ModelProvider, ModelResponse, ProviderError
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +126,7 @@ class Orchestrator:
         corrections: CorrectionHandler,
         catalog: list[IntentEntry],
         workspace: WorkspaceManager,
+        provider: ModelProvider | None = None,
     ) -> None:
         self._config = config
         self._tool_registry = registry
@@ -136,6 +138,7 @@ class Orchestrator:
         self._corrections = corrections
         self._catalog = catalog
         self._workspace = workspace
+        self._provider = provider
 
         self._steps: list[StepRecord] = []
         self._failed_redo_count: int = 0
@@ -526,7 +529,28 @@ class Orchestrator:
         tool_def: dict[str, Any],
         messages: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        """Call the model via OpenRouter and return the assistant message dict."""
+        """Call the model and return the assistant message dict.
+
+        When a provider is configured, delegates to the provider abstraction.
+        Otherwise falls back to direct OpenRouter HTTP calls for backward
+        compatibility with code that patches ``ecospheric_harness.orchestrator.httpx``
+        in tests.
+        """
+        if self._provider is not None:
+            response: ModelResponse = self._provider.generate(
+                system_prompt, messages, tool_def,
+            )
+            return {
+                "tool_calls": response.tool_calls,
+                "tool_call_id": response.tool_call_id,
+                "usage": {
+                    "input_tokens": response.usage.input_tokens,
+                    "output_tokens": response.usage.output_tokens,
+                },
+                "finish_reason": response.finish_reason,
+            }
+
+        # -- fallback: direct OpenRouter call (backward compat with test patches) --
         api_key = os.environ.get("OPENROUTER_API_KEY", "")
         headers = {
             "Authorization": f"Bearer {api_key}",

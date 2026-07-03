@@ -12,6 +12,15 @@ from __future__ import annotations
 
 from ecospheric_harness.config import HarnessConfig
 from ecospheric_harness.orchestrator import Orchestrator
+from ecospheric_harness.providers.base import (
+    ModelProvider,
+    ModelResponse,
+    StreamChunk,
+    TokenUsage,
+    ProviderError,
+)
+from ecospheric_harness.providers.openrouter import OpenRouterProvider
+from ecospheric_harness.providers.ollama import OllamaProvider
 from ecospheric_harness.result import PipelineResult, StepRecord
 
 # Harness is defined in __main__.py; import last to avoid circular deps
@@ -22,7 +31,14 @@ from ecospheric_harness.__main__ import Harness
 __all__ = [
     "Harness",
     "HarnessConfig",
+    "ModelProvider",
+    "ModelResponse",
+    "OllamaProvider",
+    "OpenRouterProvider",
     "Orchestrator",
     "PipelineResult",
+    "ProviderError",
     "StepRecord",
+    "StreamChunk",
+    "TokenUsage",
 ]

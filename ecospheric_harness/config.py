@@ -11,6 +11,8 @@ class HarnessConfig:
     """Configuration for the Ecospheric Agent Harness."""
 
     model: str = "z-ai/glm-5.2"
+    provider: str = "openrouter"
+    ollama_host: str = "http://localhost:11434"
     tools: list[str] = field(default_factory=lambda: ["edd", "ese"])
     subprocess_timeout: int = 300
     disk_limit_gb: float = 2.0
@@ -78,6 +80,11 @@ class HarnessConfig:
             cfg.rlimit_nproc = int(v)
         if v := os.environ.get("HARNESS_GDAL_CACHEMAX_MB"):
             cfg.gdal_cachemax_mb = int(v)
+
+        if v := os.environ.get("HARNESS_PROVIDER"):
+            cfg.provider = v
+        if v := os.environ.get("HARNESS_OLLAMA_HOST"):
+            cfg.ollama_host = v
 
         return cfg
 

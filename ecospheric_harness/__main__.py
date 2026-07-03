@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -25,6 +26,9 @@ from ecospheric_harness.intents import (
 from ecospheric_harness.menu import available_intents
 from ecospheric_harness.orchestrator import Orchestrator
 from ecospheric_harness.preflight import PreflightChecker
+from ecospheric_harness.providers.base import ModelProvider, ProviderError
+from ecospheric_harness.providers.openrouter import OpenRouterProvider
+from ecospheric_harness.providers.ollama import OllamaProvider
 from ecospheric_harness.registry import ToolRegistry
 from ecospheric_harness.resolver import IntentResolver
 from ecospheric_harness.result import PipelineResult
@@ -61,6 +65,9 @@ class Harness:
         rlimit_as_mb: int | None = None,
         rlimit_nproc: int | None = None,
         gdal_cachemax_mb: int = 256,
+        provider: ModelProvider | None = None,
+        provider_type: str = "openrouter",
+        ollama_host: str = "http://localhost:11434",
     ) -> None:
         tool_names = tools if tools is not None else ["edd", "ese"]
 
@@ -77,6 +84,8 @@ class Harness:
             rlimit_as_mb=rlimit_as_mb,
             rlimit_nproc=rlimit_nproc,
             gdal_cachemax_mb=gdal_cachemax_mb,
+            provider=provider_type,
+            ollama_host=ollama_host,
         )
 
         # Create WorkspaceManager
@@ -145,6 +154,22 @@ class Harness:
             workspace=self._workspace,
             preflight=self._preflight,
         )
+
+        # Create provider if not supplied
+        if provider is None:
+            if provider_type == "ollama" or self._config.model.startswith("ollama/"):
+                self._provider: ModelProvider = OllamaProvider(
+                    host=ollama_host,
+                    model=self._config.model,
+                )
+            else:
+                self._provider = OpenRouterProvider(
+                    api_key=os.environ.get("OPENROUTER_API_KEY", ""),
+                    model=self._config.model,
+                )
+        else:
+            self._provider = provider
+
         # Orchestrator shares the corrections' step list
         self._orchestrator = Orchestrator(
             config=self._config,
@@ -157,6 +182,7 @@ class Harness:
             corrections=self._corrections,
             catalog=self._catalog,
             workspace=self._workspace,
+            provider=self._provider,
         )
 
     # -- public methods ----------------------------------------------------
@@ -208,6 +234,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "--model",
         default="z-ai/glm-5.2",
         help="Model identifier (default: z-ai/glm-5.2)",
+    )
+    parser.add_argument(
+        "--provider",
+        choices=["openrouter", "ollama"],
+        default="openrouter",
+        help="Model provider (default: openrouter)",
+    )
+    parser.add_argument(
+        "--ollama-host",
+        default="http://localhost:11434",
+        help="Ollama host URL (default: http://localhost:11434)",
     )
     parser.add_argument(
         "--list-tools",
@@ -418,6 +455,8 @@ def main(argv: list[str] | None = None) -> int:
             rlimit_as_mb=args.rlimit_as_mb,
             rlimit_nproc=args.rlimit_nproc,
             gdal_cachemax_mb=args.gdal_cachemax,
+            provider_type=args.provider,
+            ollama_host=args.ollama_host,
         )
         _list_tools_json(harness)
         return 0
@@ -436,6 +475,8 @@ def main(argv: list[str] | None = None) -> int:
             rlimit_as_mb=args.rlimit_as_mb,
             rlimit_nproc=args.rlimit_nproc,
             gdal_cachemax_mb=args.gdal_cachemax,
+            provider_type=args.provider,
+            ollama_host=args.ollama_host,
         )
         _list_intents_json(harness)
         return 0
@@ -457,6 +498,8 @@ def main(argv: list[str] | None = None) -> int:
             rlimit_as_mb=args.rlimit_as_mb,
             rlimit_nproc=args.rlimit_nproc,
             gdal_cachemax_mb=args.gdal_cachemax,
+            provider_type=args.provider,
+            ollama_host=args.ollama_host,
         )
         _dry_run(harness, args.prompt)
         return 0
@@ -547,6 +590,8 @@ def main(argv: list[str] | None = None) -> int:
         rlimit_as_mb=args.rlimit_as_mb,
         rlimit_nproc=args.rlimit_nproc,
         gdal_cachemax_mb=args.gdal_cachemax,
+        provider_type=args.provider,
+        ollama_host=args.ollama_host,
     )
     result = harness.run(args.prompt)
     print(result.summary())
