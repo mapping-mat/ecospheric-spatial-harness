@@ -1,6 +1,6 @@
 # ESP Roadmap — Ecospheric Spatial Platform
 
-> Revised 2026-07-01. Four review rounds (Gemini 3 Flash, Opus 4.8 ×2, MiniMax M3). Build-ready.
+> Revised 2026-07-03. Four review rounds (Gemini 3 Flash, Opus 4.8 ×2, MiniMax M3). Phases 0–3 complete.
 
 ## Current State
 
@@ -11,15 +11,46 @@ Four packages built, tested, in private GitHub repos:
 | **ETP** | Shared protocol: envelopes, command descriptors, parameter schemas, error types | 271 |
 | **EDD** | Data discovery/fetch — 9 source plugins (OSM, STAC, geoBoundaries, etc), 13 commands | 744 |
 | **ESE** | Geospatial processing — 96 commands across raster, vector, pointcloud, hydro, proj | 1,917 |
-| **ESH** | Multi-turn LLM orchestration — intent protocol, named artifact registry, undo/redo, preflight | 345 |
+| **ESH** | Multi-turn LLM orchestration — intent protocol, named artifact registry, undo/redo, preflight, web UI | 608 |
 
-**Total: 3,184 tests. All passing.**
+**Total: 3,540 tests. All passing.**
+
+## Phase Completion Summary
+
+| Phase | Status | Date | Key Commits |
+|-------|--------|------|-------------|
+| 0a — Environment & Installation | ✅ | 2026-07-01 | (initial) |
+| 0b — WorkspaceManager | ✅ | 2026-07-02 | `27c916d` |
+| 0c — Security Foundation | ✅ | 2026-07-02 | `19aa441` |
+| 0.5 — Named Artifact Registry | ✅ | 2026-07-02 | `081ad54`, `c4ffc49` |
+| 1a — Eval Harness | ✅ | 2026-07-02 | `fad7cf8` |
+| 1b — First Real NL Query | ✅ | 2026-07-02 | `f1f0d96`→`5dc3bf4` |
+| 1.5 — Provider Abstraction | ✅ | 2026-07-03 | `e59bab3` |
+| 2.1 — Preflight Foundation (Checks 1–8) | ✅ | 2026-07-03 | `ad25ae2` |
+| 2.2 — Output Validation | ✅ | 2026-07-03 | `0e73cfc` |
+| 2.3 — Memory Budget + Command Classification | ✅ | 2026-07-03 | `a489f01` |
+| 2.4 — WorkspaceManager Extensions | ✅ | 2026-07-03 | `a489f01` |
+| 2.5 — COG Default + Integration Tests | ✅ | 2026-07-03 | `2d36e70` |
+| 2.6 — Post-Review Fixes (Sonnet 5) | ✅ | 2026-07-03 | `5a96960` |
+| 3.1a — Registry Persistence Wiring | ✅ | 2026-07-03 | `e043321` |
+| 3.1b — SessionManager | ✅ | 2026-07-03 | `1584c21` |
+| 3.2 — FastAPI + SSE + rio-tiler Tiles | ✅ | 2026-07-03 | `bad6ecb`, `4c68af3`, `e179436` |
+| 3.3 — Frontend SPA | ✅ | 2026-07-03 | `1072e96` |
+| 3.3b — E2E Smoke Test + Bug Fixes | ✅ | 2026-07-03 | `00bb09b`, `00eed0d` |
+| 3.4 — Provenance, Cancellation, ASK_USER | ⬜ DEFERRED | — | — |
+| 4 — Hardening & Polish | ⬜ | — | — |
+
+**E2E verified:** Playwright smoke test — search → reproject → buffer pipeline completes through browser with SSE streaming, 3 artifacts produced, map + artifact panel populated.
 
 ---
 
 ## Revised Roadmap
 
-### Phase 0 — Environment, Installation, Security & Workspace
+> **Note:** Phases 0–3.3 are COMPLETE. Checkboxes below preserve the original design spec.
+> For granular per-phase status, commits, and test counts, see `DEVELOPMENT.md`.
+> Remaining work: Phase 3.4 (deferred) and Phase 4 (hardening).
+
+### Phase 0 — Environment, Installation, Security & Workspace ✅ COMPLETE (2026-07-02)
 
 **Goal:** Get tools installed and pinned, establish the security envelope, and build the `WorkspaceManager` that all subsequent phases depend on.
 
@@ -77,7 +108,7 @@ Threat model: single trusted user on a single host. Prompts and tool outputs are
 
 ---
 
-### Phase 0.5 — Named Artifact Registry
+### Phase 0.5 — Named Artifact Registry ✅ COMPLETE (2026-07-02)
 
 **Goal:** Replace the two-artifact sliding window with a named artifact registry before building anything on top of it.
 
@@ -108,7 +139,7 @@ The current implementation physically deletes artifacts when they fall outside t
 
 ---
 
-### Phase 1 — First NL Query + Evaluation Harness
+### Phase 1 — First NL Query + Evaluation Harness ✅ COMPLETE (2026-07-02)
 
 **Goal:** Run a real NL geospatial query and prove it works — with automated regression coverage.
 
@@ -125,7 +156,7 @@ The current implementation physically deletes artifacts when they fall outside t
 - [ ] Run N=3 per case for variance
 - [ ] Record baseline token cost and latency
 
-#### 1b — First Real Query ✅ COMPLETE (2026-07-02)
+#### 1b — First Real Query ✅ COMPLETE (2026-07-02) (already marked)
 
 - [x] Set `OPENROUTER_API_KEY` in env
 - [x] `--list-tools` and `--list-intents` verification (2 tools, 11 intents)
@@ -151,7 +182,7 @@ The current implementation physically deletes artifacts when they fall outside t
 
 ---
 
-### Phase 1.5 — Provider Abstraction
+### Phase 1.5 — Provider Abstraction ✅ COMPLETE (2026-07-03)
 
 **Goal:** Decouple from OpenRouter before coupling deepens.
 
@@ -206,7 +237,7 @@ class ProviderError(Exception):
 
 ---
 
-### Phase 2 — Spatial Validation + Data-Size Strategy
+### Phase 2 — Spatial Validation + Data-Size Strategy ✅ COMPLETE (2026-07-03)
 
 **Goal:** Prevent "Success" on garbage outputs and prevent OOM on large data.
 
@@ -293,7 +324,7 @@ Not a static "input size range / output size range" — that's not meaningful (a
 
 ---
 
-### Phase 3 — Web UI
+### Phase 3 — Web UI ✅ COMPLETE (2026-07-03)
 
 **Goal:** Chat bar + map window. Purpose-built, not notebook-based.
 
