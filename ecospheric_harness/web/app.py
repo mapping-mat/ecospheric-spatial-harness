@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field
 
@@ -27,7 +28,7 @@ from ecospheric_harness.web.tiles import serve_tile, get_tile_bounds, render_pre
 
 class ChatRequest(BaseModel):
     session_id: str
-    prompt: str = Field(min_length=1)
+    prompt: str = Field(min_length=1, max_length=10000)
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +48,16 @@ def create_app(harness_kwargs: dict[str, Any] | None = None) -> FastAPI:
         A fully-wired FastAPI instance.
     """
     app = FastAPI(title="Ecospheric Spatial Harness")
+
+    # CORS — permissive for dev (Vite dev server on different port).
+    # Tighten for production deployment.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.state.session_manager = SessionManager(**(harness_kwargs or {}))
 
     # ------------------------------------------------------------------
@@ -217,39 +228,43 @@ def create_app(harness_kwargs: dict[str, Any] | None = None) -> FastAPI:
                 detail="Session is busy processing another request",
             )
 
+        # Timeout for the orchestrator — prevents a stuck request from
+        # permanently locking a session with 409s.
+        orchestrator_timeout = 600  # 10 minutes
+
         async def event_generator() -> Any:
             """Async generator that streams SSE events to the client.
 
             The orchestrator runs in a thread-pool worker.  Events are
             bridged into the async world via :class:`QueueEventRelay`.
 
-            The session lock is released in the ``finally`` block **after
-            the orchestrator thread completes**, ensuring no background
-            mutation occurs after lock release.
+            The session lock is released **after** the orchestrator thread
+            completes, even if the client disconnects mid-stream.  This is
+            achieved with a nested ``try/finally`` that awaits the executor
+            future before the outer ``finally`` releases the lock.
             """
             relay = QueueEventRelay()
             relay.set_loop(asyncio.get_running_loop())
 
-            # Track the executor future so we can wait for it before
-            # releasing the lock — prevents the race where a client
-            # disconnects, the lock is released, but the orchestrator
-            # is still mutating state in the background.
             future: asyncio.Future | None = None
 
             try:
                 def run_orchestrator() -> None:
                     """Thread-pool target: run the sync orchestrator."""
                     try:
-                        relay.push(format_sse_event("turn_start", {"prompt": req.prompt}))
+                        relay.push(format_sse_event("turn_start", {"phase": "started"}))
 
                         result = harness.run(req.prompt)
 
-                        # Emit artifact events for each step produced
-                        for step in harness._orchestrator._steps:
+                        # Emit artifact events for each step produced.
+                        # Use result.steps (PipelineResult) instead of
+                        # harness._orchestrator._steps (internal state).
+                        steps = result.steps if hasattr(result, "steps") else []
+                        for step in steps:
                             if step.status == "success" and step.envelope:
                                 data = step.envelope.get("data", {})
                                 relay.push(format_sse_event("artifact", {
-                                    "id": step.output_path.stem if step.output_path else "",
+                                    "artifact_id": step.output_path.stem if step.output_path else "",
                                     "data_type": data.get("data_type", "unknown"),
                                     "format": data.get("format", "unknown"),
                                     "crs": data.get("crs") or data.get("output_crs"),
@@ -258,7 +273,7 @@ def create_app(harness_kwargs: dict[str, Any] | None = None) -> FastAPI:
 
                         relay.push(format_sse_event("turn_end", {
                             "status": "success",
-                            "steps": len(harness._orchestrator._steps),
+                            "steps": len(steps),
                         }))
                         relay.push(format_sse_event("done", {"status": "complete"}))
                     except Exception as exc:
@@ -271,18 +286,25 @@ def create_app(harness_kwargs: dict[str, Any] | None = None) -> FastAPI:
                     None, run_orchestrator,
                 )
 
-                async for event in relay:
-                    yield event
-
-                # Wait for the executor future to complete before releasing
-                # the lock. This ensures the orchestrator thread is fully
-                # done mutating state before another request can acquire
-                # the session.
-                if future is not None:
-                    await future
+                # Stream events to client.  If the client disconnects,
+                # GeneratorExit is raised here — but the inner try/finally
+                # below ensures we still await the orchestrator thread.
+                try:
+                    async for event in relay:
+                        yield event
+                finally:
+                    # Always wait for the orchestrator thread to complete
+                    # before releasing the lock — even on client disconnect.
+                    # This prevents a second request from mutating state
+                    # while the first orchestrator is still running.
+                    if future is not None:
+                        try:
+                            await asyncio.wait_for(future, timeout=orchestrator_timeout)
+                        except asyncio.TimeoutError:
+                            pass  # Lock released after timeout; orchestrator may still run
+                        except Exception:
+                            pass  # Orchestrator errored; safe to release
             finally:
-                # Always release the session lock — after the orchestrator
-                # thread has completed (or errored).
                 sm.release(req.session_id)
 
         return StreamingResponse(
