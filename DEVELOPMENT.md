@@ -24,10 +24,11 @@
 | 3.1b — SessionManager | ✅ | 2026-07-03 | 534 | `1584c21` |
 | 3.2 — FastAPI + SSE + rio-tiler Tiles | ✅ | 2026-07-03 | 558 | `bad6ecb`, `4c68af3`, `e179436` |
 | 3.3 — Frontend SPA | ✅ | 2026-07-03 | 558 | `1072e96` |
+| 3.3b — E2E Smoke Test + Bug Fixes | ✅ | 2026-07-03 | 608 | `00bb09b`, `00eed0d` |
 | 3.4 — Provenance, Cancellation, ASK_USER | ⬜ DEFERRED | — | — | — |
 | 4 — Hardening | ⬜ | — | — | — |
 
-## Test Count: 558
+## Test Count: 608
 ## Source Files: 35+ (see structure below)
 
 ## Source Structure
@@ -274,3 +275,26 @@ ecospheric-harness [prompt] [options]
 | `HARNESS_MEMORY_LIMIT_MB` | `--memory-limit-mb` | (none) |
 | `HARNESS_SESSION_TTL_DAYS` | `--session-ttl-days` | `7.0` |
 | `HARNESS_DEFAULT_RASTER_FORMAT` | `--default-raster-format` | `cog` |
+
+## E2E Smoke Test (2026-07-03)
+
+### Playwright E2E: search → reproject → buffer
+
+**Status:** ✅ PASSING
+
+Pipeline: "Search for buildings near Chico, CA and buffer them by 500 meters"
+- Session created via API
+- Prompt typed into frontend chat input
+- SSE events received: turn_start → artifact (×3) → done
+- 3 artifacts produced: search_osm (geoparquet), reproject (geoparquet), buffer (geoparquet)
+- "Complete ✓" displayed in chat
+
+Script: `tmp/playwright/smoke_e2e.py`
+
+### Bugs Found & Fixed During E2E
+
+1. **CRS metadata loss** (`00bb09b`): ESE `proj transform` emits CRS under `to_crs`/`from_crs` keys, which the orchestrator didn't recognize. New `artifact_metadata.py` module with proper fallback chain + file-based bbox derivation.
+
+2. **COG injection on vector commands** (`00eed0d`): The raster format heuristic matched "buffer" in command name, injecting `format=cog` into `vector buffer`. ESE exited with rc=2. Fixed to check `data_type`/`category` instead of name substrings.
+
+3. **Error masking** (`00eed0d`): When ESE failed, stdout was empty → `json.loads("")` threw → executor returned generic "Tool produced invalid JSON output" with no diagnostic info. Now includes exit code + stdout/stderr snippets.
