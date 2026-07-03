@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ecospheric Spatial Harness</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>🌐</text></svg>" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Map area -->
+    <div id="map"></div>
+
+    <!-- Artifact panel (top-right) -->
+    <div id="artifact-panel" class="collapsed">
+      <div id="artifact-header">
+        <span class="panel-title">Artifacts</span>
+        <button id="artifact-toggle" title="Toggle artifact panel">▸</button>
+      </div>
+      <div id="artifact-list">
+        <p class="empty-hint">No artifacts yet. Chat to generate some.</p>
+      </div>
+    </div>
+
+    <!-- Layer control (top-left) -->
+    <div id="layer-control">
+      <div id="layer-header">
+        <span class="panel-title">Layers</span>
+        <button id="layer-toggle" title="Toggle layer list">▸</button>
+      </div>
+      <div id="layer-list" class="collapsed">
+        <p class="empty-hint">No layers added yet.</p>
+      </div>
+    </div>
+
+    <!-- Chat area (bottom) -->
+    <div id="chat-area">
+      <div id="message-log"></div>
+      <div id="chat-bar">
+        <input
+          type="text"
+          id="chat-input"
+          placeholder="Ask something spatial..."
+          autocomplete="off"
+        />
+        <button id="chat-send" title="Send (Enter)">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
