@@ -205,6 +205,78 @@ class WorkspaceManager:
                 pass
             self._lockfile_fd = None
 
+    # -- session cleanup / estimation (Phase 2.4) --------------------------
+
+    def cleanup_old_sessions(self, ttl_days: float = 7.0) -> int:
+        """Remove session directories older than ttl_days. Returns count removed."""
+        import time
+        cutoff = time.time() - (ttl_days * 86400)
+        removed = 0
+        if not self._workspace_root.exists():
+            return 0
+        for entry in self._workspace_root.iterdir():
+            if not entry.is_dir():
+                continue
+            if entry == self._session_dir:
+                continue  # Don't clean up current session
+            try:
+                # Find newest file mtime in the session dir
+                newest_mtime = 0
+                for dirpath, _dirnames, filenames in os.walk(str(entry)):
+                    for fname in filenames:
+                        fpath = os.path.join(dirpath, fname)
+                        try:
+                            mtime = os.path.getmtime(fpath)
+                            if mtime > newest_mtime:
+                                newest_mtime = mtime
+                        except OSError:
+                            pass
+                if newest_mtime == 0:
+                    # Empty dir or all files unreadable — use dir mtime
+                    try:
+                        dir_mtime = os.path.getmtime(str(entry))
+                        newest_mtime = dir_mtime
+                    except OSError:
+                        continue
+                if newest_mtime < cutoff:
+                    import shutil
+                    shutil.rmtree(str(entry))
+                    removed += 1
+            except OSError:
+                continue
+        return removed
+
+    def cleanup_cancelled_step(self, session_dir: Path, step_number: int) -> int:
+        """Remove temp files from a cancelled step. Returns count removed.
+
+        This is a placeholder for Phase 3's cancellation flow.
+        Removes files matching step patterns in the session directory.
+        """
+        removed = 0
+        if not session_dir.exists():
+            return 0
+        prefix = f"step_{step_number:03d}_"
+        for entry in session_dir.iterdir():
+            if entry.name.startswith(prefix) and entry.is_file():
+                try:
+                    entry.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+        return removed
+
+    def estimate_rss(self, artifact: object, profile: object) -> int:
+        """Estimate peak RSS for an artifact + command profile. Returns bytes."""
+        from ecospheric_harness.command_profile import estimate_rss_bytes
+        file_size = 0
+        try:
+            file_size = artifact.path.stat().st_size  # type: ignore[attr-defined]
+        except (OSError, AttributeError):
+            pass
+        envelope = getattr(artifact, "envelope", {}) or {}
+        estimate, _confidence = estimate_rss_bytes(profile, envelope, file_size)
+        return estimate
+
     # -- internal ----------------------------------------------------------
 
     def _is_confined(self, canonical_path: Path) -> bool:

@@ -22,12 +22,14 @@ class HarnessConfig:
         default_factory=lambda: Path.home() / ".esp" / "sessions"
     )
     session_id: str | None = None
+    session_ttl_days: float = 7.0
 
     # Security
     subprocess_max_output_mb: int = 100
     rlimit_as_mb: int | None = None  # None = no RLIMIT_AS
     rlimit_nproc: int | None = None  # None = no RLIMIT_NPROC
     gdal_cachemax_mb: int = 256
+    memory_limit_mb: int | None = None
 
     # ------------------------------------------------------------------
     # Factory methods
@@ -62,6 +64,8 @@ class HarnessConfig:
 
         if v := os.environ.get("HARNESS_SESSION_ID"):
             cfg.session_id = v
+        if v := os.environ.get("HARNESS_SESSION_TTL_DAYS"):
+            cfg.session_ttl_days = float(v)
         if v := os.environ.get("HARNESS_MAX_TURNS"):
             cfg.max_turns = int(v)
         if v := os.environ.get("HARNESS_SUBPROCESS_TIMEOUT"):
@@ -80,6 +84,9 @@ class HarnessConfig:
             cfg.rlimit_nproc = int(v)
         if v := os.environ.get("HARNESS_GDAL_CACHEMAX_MB"):
             cfg.gdal_cachemax_mb = int(v)
+
+        if v := os.environ.get("HARNESS_MEMORY_LIMIT_MB"):
+            cfg.memory_limit_mb = int(v)
 
         if v := os.environ.get("HARNESS_PROVIDER"):
             cfg.provider = v

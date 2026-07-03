@@ -66,9 +66,11 @@ class Harness:
         rlimit_as_mb: int | None = None,
         rlimit_nproc: int | None = None,
         gdal_cachemax_mb: int = 256,
+        memory_limit_mb: int | None = None,
         provider: ModelProvider | None = None,
         provider_type: str = "openrouter",
         ollama_host: str = "http://localhost:11434",
+        session_ttl_days: float = 7.0,
     ) -> None:
         tool_names = tools if tools is not None else ["edd", "ese"]
 
@@ -81,10 +83,12 @@ class Harness:
             max_turns=max_turns,
             workspace_root=Path(workspace_root) if workspace_root is not None else Path.home() / ".esp" / "sessions",
             session_id=session_id,
+            session_ttl_days=session_ttl_days,
             subprocess_max_output_mb=max_output_mb,
             rlimit_as_mb=rlimit_as_mb,
             rlimit_nproc=rlimit_nproc,
             gdal_cachemax_mb=gdal_cachemax_mb,
+            memory_limit_mb=memory_limit_mb,
             provider=provider_type,
             ollama_host=ollama_host,
         )
@@ -146,6 +150,7 @@ class Harness:
         self._preflight = PreflightChecker(
             registry=self._artifact_registry,
             workspace=self._workspace,
+            memory_limit_mb=memory_limit_mb,
         )
         self._corrections = CorrectionHandler(
             registry=self._artifact_registry,
@@ -299,6 +304,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Session identifier for resuming or naming a session",
     )
     parser.add_argument(
+        "--session-ttl-days",
+        type=float,
+        default=7.0,
+        help="Session TTL in days for cleanup (default: 7.0)",
+    )
+    parser.add_argument(
         "--max-output-mb",
         type=int,
         default=100,
@@ -321,6 +332,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=256,
         help="GDAL_CACHEMAX in MB (default: 256)",
+    )
+    parser.add_argument(
+        "--memory-limit-mb",
+        type=int,
+        default=None,
+        help="Memory budget limit in MB (default: no limit)",
     )
     parser.add_argument(
         "--eval",
@@ -458,8 +475,10 @@ def main(argv: list[str] | None = None) -> int:
             rlimit_as_mb=args.rlimit_as_mb,
             rlimit_nproc=args.rlimit_nproc,
             gdal_cachemax_mb=args.gdal_cachemax,
+            memory_limit_mb=args.memory_limit_mb,
             provider_type=args.provider,
             ollama_host=args.ollama_host,
+            session_ttl_days=args.session_ttl_days,
         )
         _list_tools_json(harness)
         return 0
@@ -478,8 +497,10 @@ def main(argv: list[str] | None = None) -> int:
             rlimit_as_mb=args.rlimit_as_mb,
             rlimit_nproc=args.rlimit_nproc,
             gdal_cachemax_mb=args.gdal_cachemax,
+            memory_limit_mb=args.memory_limit_mb,
             provider_type=args.provider,
             ollama_host=args.ollama_host,
+            session_ttl_days=args.session_ttl_days,
         )
         _list_intents_json(harness)
         return 0
@@ -501,8 +522,10 @@ def main(argv: list[str] | None = None) -> int:
             rlimit_as_mb=args.rlimit_as_mb,
             rlimit_nproc=args.rlimit_nproc,
             gdal_cachemax_mb=args.gdal_cachemax,
+            memory_limit_mb=args.memory_limit_mb,
             provider_type=args.provider,
             ollama_host=args.ollama_host,
+            session_ttl_days=args.session_ttl_days,
         )
         _dry_run(harness, args.prompt)
         return 0
@@ -593,8 +616,10 @@ def main(argv: list[str] | None = None) -> int:
         rlimit_as_mb=args.rlimit_as_mb,
         rlimit_nproc=args.rlimit_nproc,
         gdal_cachemax_mb=args.gdal_cachemax,
+        memory_limit_mb=args.memory_limit_mb,
         provider_type=args.provider,
         ollama_host=args.ollama_host,
+        session_ttl_days=args.session_ttl_days,
     )
     result = harness.run(args.prompt)
     print(result.summary())

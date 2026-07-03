@@ -49,10 +49,12 @@ class PreflightChecker:
     """Validates that a command can safely execute on the available resources."""
 
     def __init__(
-        self, registry: ArtifactRegistry, workspace: WorkspaceManager
+        self, registry: ArtifactRegistry, workspace: WorkspaceManager,
+        memory_limit_mb: int | None = None,
     ) -> None:
         self._registry = registry
         self._workspace = workspace
+        self._memory_limit_mb = memory_limit_mb
 
     # ------------------------------------------------------------------
     # Pipeline entrypoint
@@ -105,7 +107,10 @@ class PreflightChecker:
         # 9. Disk space
         results.append(self.check_disk(input_artifact=input_artifact))
 
-        # 10. SSRF
+        # 10. Memory budget
+        results.append(self._check_memory_budget(command, input_artifact, params))
+
+        # 11. SSRF
         results.append(self.check_ssrf(params))
 
         return results
@@ -234,6 +239,62 @@ class PreflightChecker:
     def check_disk_available(self, estimated_bytes: int = 0) -> bool:
         """Check if estimated_bytes fit within the disk limit."""
         return self._registry.bytes_used + estimated_bytes < self._registry._disk_limit
+
+    def _check_memory_budget(
+        self,
+        command: CommandDescriptor,
+        input_artifact: Artifact | ArtifactRecord | None,
+        params: dict[str, Any],
+    ) -> PreflightResult:
+        """Check estimated peak RSS against memory limit."""
+        if self._memory_limit_mb is None or input_artifact is None:
+            return PreflightResult(check="memory_budget")  # PASS — no limit set
+
+        from ecospheric_harness.command_profile import get_profile, estimate_rss_bytes
+
+        # Determine data type from artifact
+        data_type = input_artifact.data_type or "unknown"
+        command_name = command.name
+
+        profile = get_profile(command_name, data_type)
+        file_size = 0
+        try:
+            file_size = input_artifact.path.stat().st_size
+        except OSError:
+            pass
+
+        estimate, confidence = estimate_rss_bytes(
+            profile, input_artifact.envelope, file_size,
+        )
+
+        limit_bytes = self._memory_limit_mb * 1024 * 1024
+
+        if estimate > limit_bytes:
+            return PreflightResult(
+                check="memory_budget",
+                resolution=Resolution.BLOCK,
+                message=(
+                    f"Estimated peak RSS {estimate / (1024 * 1024):.0f} MB exceeds "
+                    f"memory limit {self._memory_limit_mb} MB "
+                    f"(command: {command_name}, class: {profile.memory_class}, "
+                    f"multiplier: {profile.memory_multiplier}×, confidence: {confidence})"
+                ),
+                diagnostics={
+                    "estimate_mb": round(estimate / (1024 * 1024), 1),
+                    "limit_mb": self._memory_limit_mb,
+                    "memory_class": profile.memory_class,
+                    "multiplier": profile.memory_multiplier,
+                    "confidence": confidence,
+                },
+            )
+
+        return PreflightResult(
+            check="memory_budget",
+            diagnostics={
+                "estimate_mb": round(estimate / (1024 * 1024), 1),
+                "confidence": confidence,
+            },
+        )
 
     # ==================================================================
     # New spatial checks (Slice 2.1)
