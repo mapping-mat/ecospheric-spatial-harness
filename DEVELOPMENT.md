@@ -1,6 +1,6 @@
 # Ecospheric Spatial Harness — Development Tracker
 
-## Current Phase: 3 — Web UI (NEXT)
+## Current Phase: 3 — Web UI (thin slice COMPLETE, 3.4 deferred)
 
 ## Phase History
 
@@ -20,11 +20,15 @@
 | 2.4 — WorkspaceManager Extensions | ✅ | 2026-07-03 | 522 | `a489f01` |
 | 2.5 — COG Default + Integration Tests | ✅ | 2026-07-03 | 519 | `2d36e70` |
 | 2.6 — Post-Review Fixes (Sonnet 5) | ✅ | 2026-07-03 | 519 | `5a96960` |
-| 3 — Web UI | ⬜ NEXT | — | — | — |
+| 3.1a — Registry Persistence Wiring | ✅ | 2026-07-03 | 526 | `e043321` |
+| 3.1b — SessionManager | ✅ | 2026-07-03 | 534 | `1584c21` |
+| 3.2 — FastAPI + SSE + rio-tiler Tiles | ✅ | 2026-07-03 | 558 | `bad6ecb`, `4c68af3`, `e179436` |
+| 3.3 — Frontend SPA | ✅ | 2026-07-03 | 558 | `1072e96` |
+| 3.4 — Provenance, Cancellation, ASK_USER | ⬜ DEFERRED | — | — | — |
 | 4 — Hardening | ⬜ | — | — | — |
 
-## Test Count: 519
-## Source Files: 30+ (see structure below)
+## Test Count: 558
+## Source Files: 35+ (see structure below)
 
 ## Source Structure
 
@@ -49,6 +53,12 @@ ecospheric_harness/
 ├── security.py          — SubprocessHardener, SSRF, output sanitization
 ├── validator.py         — SchemaValidator
 ├── workspace.py         — WorkspaceManager (path confinement, disk, lock, cleanup)
+├── session_manager.py   — SessionManager (Harness caching, concurrent access, 409)
+├── web/
+│   ├── __init__.py      — web package
+│   ├── app.py           — FastAPI app (7 endpoints, SSE streaming, CORS)
+│   ├── sse.py           — format_sse_event, QueueEventRelay (sync→async bridge)
+│   └── tiles.py         — rio-tiler tile serving (serve_tile, get_tile_bounds, render_preview_png)
 ├── artifact.py          — Artifact dataclass
 ├── artifact_registry.py — ArtifactRegistry (DAG, idempotency, eviction)
 ├── menu.py              — available_intents()
@@ -152,6 +162,66 @@ Band validity, categorical resampling guard, datum transformation, NoData awaren
 - Memory budget skipped when `input_artifact is None` (search/fetch ops — RLIMIT_AS is backstop, Phase 4 may add output-size estimation)
 - Checks 11-14 deferred to Phase 4 (band validity, categorical resampling, datum transformation, NoData, pixel alignment)
 - M2 backward-compat: `_resolve_secondary_input` returning `(None, None)` triggers unnecessary re-resolution (benign, idempotent)
+- Phase 3 SSE: orchestrator events are post-hoc (emitted after `harness.run()` completes, not per-turn). Real-time streaming requires orchestrator hooks (Phase 3.4 or 4)
+- Phase 3: no client-disconnect test for the lock-release race (fix verified by code review, not automated test)
+- Phase 3: CORS is `allow_origins=["*"]` (dev only — tighten for any non-local deployment)
+- Phase 3: no request body size limits or SSE connection caps (single-user local tool, low risk)
+
+## Phase 3 — Web UI (Thin Slice) ✅ (2026-07-03)
+
+### 3.1a — Registry Persistence Wiring (`e043321`)
+- `registry.load()` on orchestrator init (via `ArtifactRegistry.__init__`)
+- `registry.cleanup_orphans()` on `Harness.__init__` after registry load
+- `registry.persist()` after successful artifact registration + after undo/redo
+- `save_state()` method on Orchestrator and Harness
+- 7 new tests (526 total)
+
+### 3.1b — SessionManager (`1584c21`)
+- `SessionManager` caches `Harness` per `session_id` (dict-based)
+- `create_session()`, `get_or_create()`, `get()`, `list_sessions()`, `remove()`
+- `acquire()`/`release()`/`is_busy()` for per-session serialization
+- Double-checked locking pattern (construct Harness outside lock, re-check inside)
+- Concurrent requests to same session → 409 Conflict
+- Thread-safe via `threading.Lock`
+- 8 new tests (534 total)
+
+### 3.2 — FastAPI Backend + SSE + rio-tiler (`bad6ecb`, `4c68af3`, `e179436`)
+- `web/app.py` — FastAPI app with 7 endpoints:
+  - `POST /api/session` — create session
+  - `GET /api/sessions` — list sessions
+  - `GET /api/session/{id}/artifacts` — list artifacts
+  - `GET /api/session/{id}/state` — current state
+  - `GET /api/artifact/{id}/preview` — vector→GeoJSON, raster→metadata
+  - `GET /api/artifact/{id}/tiles/{z}/{x}/{y}.png` — rio-tiler PNG tile
+  - `POST /api/chat` — SSE streaming (turn_start, artifact, turn_end, done, error)
+- `web/sse.py` — `format_sse_event()` + `QueueEventRelay` (sync→async bridge)
+- `web/tiles.py` — `serve_tile()`, `get_tile_bounds()`, `render_preview_png()`
+- Sync→async: `run_in_executor` + `QueueEventRelay` + `asyncio.wait_for` timeout (600s)
+- Lock lifecycle: inner `try/finally` ensures `await future` completes before `sm.release()`
+- CORS middleware (dev: `allow_origins=["*"]`)
+- `--web`, `--port`, `--host` CLI flags
+- Dependencies: fastapi, uvicorn, rio-tiler, rasterio, pytest-asyncio
+- 24 new tests (558 total)
+- Reviewed by Sonnet 5 (REVISE→fixed: missing routes, lock race, SSE events, bbox hardcode) + MiniMax M3 (REVISE→fixed: inner try/finally, _steps coupling, payload key mismatch, CORS, timeout)
+
+### 3.3 — Frontend SPA (`1072e96`)
+- Vanilla JS + Vite + Leaflet (no framework)
+- Dark theme (#1a1a2e bg, #16213e panels, #e94560 accent)
+- Chat bar with SSE streaming via fetch + ReadableStream
+- Parses all SSE event types (turn_start, tool_call, artifact, turn_end, done, error)
+- Auto-refreshes artifact list after `done` event
+- Vector artifacts: GeoJSON layer via `/api/artifact/{id}/preview`
+- Raster artifacts: tile layer via `/api/artifact/{id}/tiles/{z}/{x}/{y}.png`
+- Layer control panel with per-layer visibility toggles
+- Vite proxy routes `/api` to backend on port 8000
+- Vite build: 158KB JS, 5.7KB CSS
+
+### 3.4 — Deferred
+- Provenance DAG visualization
+- Cancellation (SIGTERM/SIGKILL, model loop abort, partial output cleanup)
+- ASK_USER inline prompts
+- Real-time SSE streaming (per-turn events during orchestration, not post-hoc)
+- Session switcher UI
 
 ## CLI Flags Summary
 
@@ -173,6 +243,9 @@ ecospheric-harness [prompt] [options]
   --memory-limit-mb MB             Memory budget limit (default: none)
   --session-ttl-days DAYS          Session TTL for cleanup (default: 7.0)
   --default-raster-format FMT      Default raster format (default: cog)
+  --web                            Launch FastAPI web server (uvicorn)
+  --port PORT                      Web server port (default: 8000)
+  --host HOST                      Web server host (default: 127.0.0.1)
   --list-tools                     List discovered tools as JSON
   --list-intents                   List available intents as JSON
   --dry-run                        Show resolved calls without executing
