@@ -11,6 +11,8 @@ dependencies = [
     "etp>=0.1.0",
     "pyproj",
     "httpx",
+    "geopandas",
+    "shapely",
 ]
 
 [project.optional-dependencies]

@@ -8,6 +8,7 @@ execution results.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any, TypeAlias
 
@@ -173,12 +174,34 @@ class CorrectionResult:
     message: str
 
 
+class Resolution(Enum):
+    """Preflight check resolution severity."""
+
+    PASS = "pass"
+    AUTO_FIX = "auto_fix"
+    ASK_USER = "ask_user"
+    MODEL_DISCRETION = "model_discretion"
+    BLOCK = "block"
+
+
 @dataclass
 class PreflightResult:
     """Result of a pre-flight validation check."""
 
-    ok: bool
-    error: str = ""
+    check: str = ""
+    resolution: Resolution = Resolution.PASS
+    message: str = ""
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def ok(self) -> bool:
+        """Backward-compat: True when resolution is PASS or MODEL_DISCRETION."""
+        return self.resolution in (Resolution.PASS, Resolution.MODEL_DISCRETION)
+
+    @property
+    def error(self) -> str:
+        """Backward-compat: returns message when resolution is BLOCK, empty otherwise."""
+        return self.message if self.resolution == Resolution.BLOCK else ""
 
 
 @dataclass

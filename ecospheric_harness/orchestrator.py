@@ -19,6 +19,8 @@ from ecospheric_harness.executor import ToolExecutor
 from ecospheric_harness.intents import (
     IntentEntry,
     IntentOption,
+    PreflightResult,
+    Resolution,
     ResolutionError,
     parse_intent,
 )
@@ -142,6 +144,7 @@ class Orchestrator:
 
         self._steps: list[StepRecord] = []
         self._failed_redo_count: int = 0
+        self._pending_warnings: list[dict[str, str]] = []
 
     # ------------------------------------------------------------------
     # Main loop
@@ -377,52 +380,65 @@ class Orchestrator:
             ))
             return None, self._make_error_turn("; ".join(validation.errors), intent)
 
-        # e. Preflight.
-        crs_result = self._preflight.check_planar_crs(resolved.command, input_artifact)
-        if not crs_result.ok:
-            self._steps.append(StepRecord(
-                step_number=len(self._steps) + 1,
-                tool=resolved.tool.name,
-                command=resolved.command.name,
-                tool_ref=resolved.tool,
-                command_ref=resolved.command,
-                intent=intent,
-                params=resolved.params,
-                status="rejected",
-                envelope=None,
-            ))
-            return None, self._make_error_turn(crs_result.error, intent)
+        # e. Preflight — run all checks via pipeline
+        preflight_results = self._preflight.run_all_checks(resolved, input_artifact, resolved.params)
 
-        disk_result = self._preflight.check_disk(input_artifact=input_artifact)
-        if not disk_result.ok:
-            self._steps.append(StepRecord(
-                step_number=len(self._steps) + 1,
-                tool=resolved.tool.name,
-                command=resolved.command.name,
-                tool_ref=resolved.tool,
-                command_ref=resolved.command,
-                intent=intent,
-                params=resolved.params,
-                status="rejected",
-                envelope=None,
-            ))
-            return None, self._make_error_turn(disk_result.error, intent)
+        # Backward-compat fallback: when preflight mocks haven't been updated
+        # to return results from run_all_checks (old-style individual mocks).
+        if not preflight_results:
+            preflight_results = [
+                self._preflight.check_planar_crs(resolved.command, input_artifact),
+                self._preflight.check_disk(input_artifact=input_artifact),
+                self._preflight.check_ssrf(resolved.params),
+            ]
 
-        # f. SSRF check.
-        ssrf_result = self._preflight.check_ssrf(resolved.params)
-        if not ssrf_result.ok:
-            self._steps.append(StepRecord(
-                step_number=len(self._steps) + 1,
-                tool=resolved.tool.name,
-                command=resolved.command.name,
-                tool_ref=resolved.tool,
-                command_ref=resolved.command,
-                intent=intent,
-                params=resolved.params,
-                status="rejected",
-                envelope=None,
-            ))
-            return None, self._make_error_turn(ssrf_result.error, intent)
+        warnings: list[dict[str, str]] = []
+
+        for result in preflight_results:
+            # Normalize: handle old-style mocks with ok/error but no resolution.
+            if isinstance(result, PreflightResult):
+                resolution = result.resolution
+                message = result.message
+                check = result.check
+            elif hasattr(result, "ok") and not result.ok:
+                resolution = Resolution.BLOCK
+                message = getattr(result, "error", "Preflight check failed")
+                check = "preflight"
+            else:
+                continue
+
+            if resolution == Resolution.BLOCK:
+                self._steps.append(StepRecord(
+                    step_number=len(self._steps) + 1,
+                    tool=resolved.tool.name,
+                    command=resolved.command.name,
+                    tool_ref=resolved.tool,
+                    command_ref=resolved.command,
+                    intent=intent,
+                    params=resolved.params,
+                    status="rejected",
+                    envelope=None,
+                ))
+                return None, self._make_error_turn(message, intent)
+            elif resolution == Resolution.MODEL_DISCRETION:
+                warnings.append({"check": check, "message": message})
+            # AUTO_FIX and ASK_USER treated as BLOCK in Phase 2
+            elif resolution in (Resolution.AUTO_FIX, Resolution.ASK_USER):
+                self._steps.append(StepRecord(
+                    step_number=len(self._steps) + 1,
+                    tool=resolved.tool.name,
+                    command=resolved.command.name,
+                    tool_ref=resolved.tool,
+                    command_ref=resolved.command,
+                    intent=intent,
+                    params=resolved.params,
+                    status="rejected",
+                    envelope=None,
+                ))
+                return None, self._make_error_turn(message, intent)
+
+        # Store warnings for turn-state (consumed by _build_turn_state).
+        self._pending_warnings = warnings
 
         # g. Execute.
         t0 = time.monotonic()
@@ -676,6 +692,7 @@ class Orchestrator:
             "all_artifacts": all_artifacts_compact,
             "available_intents": intent_dicts,
             "can_undo": self._artifact_registry.can_undo,
+            "warnings": getattr(self, "_pending_warnings", []),
             "last_result": {"status": status, "step": step, "intent": intent},
         }
 
@@ -692,6 +709,7 @@ class Orchestrator:
         if self._failed_redo_count > 0:
             turn["failed_attempts"] = self._failed_redo_count
 
+        self._pending_warnings = []
         return turn
 
     def _build_emit_intent_tool(self, available: list[IntentOption]) -> dict[str, Any]:

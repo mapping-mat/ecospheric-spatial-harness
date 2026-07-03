@@ -21,8 +21,10 @@ from ecospheric_harness.workspace import WorkspaceManager
 from ecospheric_harness.intents import (
     IntentEntry,
     IntentOption,
+    PreflightResult,
     RegisteredTool,
     ResolvedCall,
+    Resolution,
     ResolutionError,
 )
 from ecospheric_harness.orchestrator import Orchestrator
@@ -89,9 +91,17 @@ def _make_mock_orchestrator(
     if preflight_ok:
         preflight.check_planar_crs.return_value = MagicMock(ok=True)
         preflight.check_disk.return_value = MagicMock(ok=True)
+        preflight.run_all_checks.return_value = []
     else:
         preflight.check_planar_crs.return_value = MagicMock(ok=False, error="requires planar CRS")
         preflight.check_disk.return_value = MagicMock(ok=True)
+        preflight.run_all_checks.return_value = [
+            PreflightResult(
+                check="planar_crs",
+                resolution=Resolution.BLOCK,
+                message="requires planar CRS",
+            )
+        ]
 
     if executor_envelope is not None:
         envelope = executor_envelope
@@ -778,8 +788,14 @@ class TestPreflightRejection:
         """Preflight: planar CRS mismatch → error to model, artifacts preserved."""
         orch, artifacts, _, _ = _make_mock_orchestrator(tmp_path)
 
-        preflight_result = MagicMock(ok=False, error="requires planar CRS")
-        orch._preflight.check_planar_crs.return_value = preflight_result
+        # Override run_all_checks to return a BLOCK result
+        orch._preflight.run_all_checks.return_value = [
+            PreflightResult(
+                check="planar_crs",
+                resolution=Resolution.BLOCK,
+                message="requires planar CRS",
+            ),
+        ]
 
         mock_menu.return_value = [IntentOption(
             intent="clip", description="Clip raster", required_params=[],
@@ -1840,3 +1856,247 @@ class TestInputAutoResolution:
         assert resolved_artifact is record
         # `input` should have been removed from params
         assert "input" not in call_args[0][1]
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator + Preflight V2 (run_all_checks integration)
+# ---------------------------------------------------------------------------
+
+
+class TestOrchestratorPreflightV2:
+    """Tests for the new run_all_checks() integration in the orchestrator.
+
+    Verifies that:
+    - All checks pass → execution continues
+    - First BLOCK → step rejected, error to model
+    - MODEL_DISCRETION → warning in turn-state
+    - AUTO_FIX → treated as BLOCK
+    - Multiple MODEL_DISCRETION → all in warnings list
+    """
+
+    @patch("ecospheric_harness.orchestrator.httpx")
+    @patch("ecospheric_harness.orchestrator.available_intents")
+    def test_all_checks_pass_execution_continues(
+        self, mock_menu: MagicMock, mock_httpx: MagicMock, tmp_path: Path,
+    ) -> None:
+        """All preflight checks pass → execution continues normally."""
+        orch, _, _, _ = _make_mock_orchestrator(tmp_path)
+        orch._preflight.run_all_checks.return_value = []
+
+        mock_menu.return_value = [IntentOption(
+            intent="clip", description="Clip raster", required_params=[],
+        )]
+        mock_httpx.post.side_effect = [
+            MagicMock(
+                json=MagicMock(return_value={"choices": [{"message": _make_model_response("clip")}]}),
+                raise_for_status=MagicMock(),
+            ),
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("complete", summary="done")}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+        ]
+
+        result = orch.run("test")
+
+        assert isinstance(result, PipelineResult)
+        assert len(result.steps) == 1
+        assert result.steps[0].status == "success"
+
+    @patch("ecospheric_harness.orchestrator.httpx")
+    @patch("ecospheric_harness.orchestrator.available_intents")
+    def test_block_result_rejects_step(
+        self, mock_menu: MagicMock, mock_httpx: MagicMock, tmp_path: Path,
+    ) -> None:
+        """First BLOCK in run_all_checks → step rejected, error to model."""
+        orch, artifacts, _, _ = _make_mock_orchestrator(tmp_path)
+        orch._preflight.run_all_checks.return_value = [
+            PreflightResult(
+                check="crs_agreement",
+                resolution=Resolution.BLOCK,
+                message="CRS mismatch between inputs",
+            ),
+        ]
+
+        mock_menu.return_value = [IntentOption(
+            intent="clip", description="Clip raster", required_params=[],
+        )]
+        mock_httpx.post.side_effect = [
+            MagicMock(
+                json=MagicMock(return_value={"choices": [{"message": _make_model_response("clip")}]}),
+                raise_for_status=MagicMock(),
+            ),
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("complete", summary="gave up")}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+        ]
+
+        result = orch.run("test")
+
+        assert artifacts.current is None
+        assert result.final_artifact is None
+        assert len(result.steps) == 1
+        assert result.steps[0].status == "rejected"
+
+    @patch("ecospheric_harness.orchestrator.httpx")
+    @patch("ecospheric_harness.orchestrator.available_intents")
+    def test_model_discretion_in_warnings(
+        self, mock_menu: MagicMock, mock_httpx: MagicMock, tmp_path: Path,
+    ) -> None:
+        """MODEL_DISCRETION results → warnings in turn-state."""
+        orch, _, _, _ = _make_mock_orchestrator(tmp_path)
+        orch._preflight.run_all_checks.return_value = [
+            PreflightResult(
+                check="geometry_validity",
+                resolution=Resolution.MODEL_DISCRETION,
+                message="15% of geometries are invalid",
+            ),
+        ]
+
+        turn_states: list[dict[str, Any]] = []
+        original_build = Orchestrator._build_turn_state
+
+        def capture_turn_state(
+            self: Orchestrator, status: str, step: int, intent: str,
+        ) -> dict[str, Any]:
+            state = original_build(self, status, step, intent)
+            turn_states.append(state)
+            return state
+
+        mock_menu.return_value = [IntentOption(
+            intent="clip", description="Clip raster", required_params=[],
+        )]
+        mock_httpx.post.side_effect = [
+            MagicMock(
+                json=MagicMock(return_value={"choices": [{"message": _make_model_response("clip")}]}),
+                raise_for_status=MagicMock(),
+            ),
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("complete", summary="done")}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+        ]
+
+        with patch.object(Orchestrator, "_build_turn_state", capture_turn_state):
+            orch.run("test")
+
+        # After step 1, the turn state should include warnings
+        # Find the post-step turn state
+        post_step_states = [
+            s for s in turn_states
+            if s.get("last_result", {}).get("status") == "success"
+            and s.get("last_result", {}).get("step", 0) > 0
+        ]
+        assert len(post_step_states) >= 1
+        # Check that warnings field exists
+        assert "warnings" in post_step_states[0]
+        warnings = post_step_states[0]["warnings"]
+        assert len(warnings) >= 1
+        assert any("geometry_validity" in w.get("check", "") for w in warnings)
+
+    @patch("ecospheric_harness.orchestrator.httpx")
+    @patch("ecospheric_harness.orchestrator.available_intents")
+    def test_auto_fix_treated_as_block(
+        self, mock_menu: MagicMock, mock_httpx: MagicMock, tmp_path: Path,
+    ) -> None:
+        """AUTO_FIX → treated as BLOCK (Phase 2 behavior)."""
+        orch, artifacts, _, _ = _make_mock_orchestrator(tmp_path)
+        orch._preflight.run_all_checks.return_value = [
+            PreflightResult(
+                check="unit_awareness",
+                resolution=Resolution.AUTO_FIX,
+                message="Geographic CRS with distance operation",
+            ),
+        ]
+
+        mock_menu.return_value = [IntentOption(
+            intent="clip", description="Clip raster", required_params=[],
+        )]
+        mock_httpx.post.side_effect = [
+            MagicMock(
+                json=MagicMock(return_value={"choices": [{"message": _make_model_response("clip")}]}),
+                raise_for_status=MagicMock(),
+            ),
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("complete", summary="gave up")}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+        ]
+
+        result = orch.run("test")
+
+        # AUTO_FIX treated as BLOCK → step rejected
+        assert artifacts.current is None
+        assert len(result.steps) == 1
+        assert result.steps[0].status == "rejected"
+
+    @patch("ecospheric_harness.orchestrator.httpx")
+    @patch("ecospheric_harness.orchestrator.available_intents")
+    def test_multiple_model_discretion_all_in_warnings(
+        self, mock_menu: MagicMock, mock_httpx: MagicMock, tmp_path: Path,
+    ) -> None:
+        """Multiple MODEL_DISCRETION results → all in warnings list."""
+        orch, _, _, _ = _make_mock_orchestrator(tmp_path)
+        orch._preflight.run_all_checks.return_value = [
+            PreflightResult(
+                check="geometry_validity",
+                resolution=Resolution.MODEL_DISCRETION,
+                message="12% invalid geometries",
+            ),
+            PreflightResult(
+                check="resolution_sanity",
+                resolution=Resolution.MODEL_DISCRETION,
+                message="Resolution ratio 2000x exceeds recommended",
+            ),
+        ]
+
+        turn_states: list[dict[str, Any]] = []
+        original_build = Orchestrator._build_turn_state
+
+        def capture_turn_state(
+            self: Orchestrator, status: str, step: int, intent: str,
+        ) -> dict[str, Any]:
+            state = original_build(self, status, step, intent)
+            turn_states.append(state)
+            return state
+
+        mock_menu.return_value = [IntentOption(
+            intent="clip", description="Clip raster", required_params=[],
+        )]
+        mock_httpx.post.side_effect = [
+            MagicMock(
+                json=MagicMock(return_value={"choices": [{"message": _make_model_response("clip")}]}),
+                raise_for_status=MagicMock(),
+            ),
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("complete", summary="done")}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+        ]
+
+        with patch.object(Orchestrator, "_build_turn_state", capture_turn_state):
+            orch.run("test")
+
+        # Find the post-step turn state
+        post_step_states = [
+            s for s in turn_states
+            if s.get("last_result", {}).get("status") == "success"
+            and s.get("last_result", {}).get("step", 0) > 0
+        ]
+        assert len(post_step_states) >= 1
+        warnings = post_step_states[0].get("warnings", [])
+        assert len(warnings) >= 2
+        warning_checks = [w.get("check", "") for w in warnings]
+        assert "geometry_validity" in warning_checks
+        assert "resolution_sanity" in warning_checks
