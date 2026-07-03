@@ -387,6 +387,54 @@ class TestInputRouting:
         with pytest.raises(ValueError, match="not found"):
             executor._route_input(artifact, cmd, {"_input_target": "nonexistent"})
 
+    @patch("ecospheric_harness.executor.subprocess.run")
+    def test_input_not_doubled_when_artifact_and_param(self, mock_run: MagicMock, tmp_path: Path) -> None:
+        """When input_artifact is routed AND params contains 'input', --input
+        must NOT appear a second time from _serialize_params."""
+        mock_run.return_value = _mock_completed(_success_envelope())
+
+        tool = _make_tool("ese")
+        # command declares "input" as a positional param (name without --)
+        cmd = _make_command("clip", [_make_param("input", "string", True)])
+        artifact = _make_artifact(tmp_path / "routed.tif")
+
+        executor = ToolExecutor()
+        # params contains an "input" key that should be suppressed
+        # Use "-" (stdin sentinel) to avoid triggering path confinement checks
+        executor.execute(
+            tool, cmd, {"input": "-"}, artifact,
+            WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000),
+        )
+
+        args = mock_run.call_args[0][0]
+        # The routed artifact path must be present
+        assert str(artifact.path) in args
+        # The params "input" value must NOT appear anywhere in args
+        assert "-" not in args
+        # With positional routing, --input should NOT appear at all
+        assert "--input" not in args
+
+    @patch("ecospheric_harness.executor.subprocess.run")
+    def test_input_serialized_when_no_artifact(self, mock_run: MagicMock, tmp_path: Path) -> None:
+        """When no input_artifact is provided, params['input'] IS serialized
+        normally — the model's own input value is used."""
+        mock_run.return_value = _mock_completed(_success_envelope())
+
+        tool = _make_tool("ese")
+        cmd = _make_command("clip", [_make_param("--input", "string")])
+
+        executor = ToolExecutor()
+        # Use a value that won't trigger path confinement heuristic
+        executor.execute(
+            tool, cmd, {"input": "stdin"}, None,
+            WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000),
+        )
+
+        args = mock_run.call_args[0][0]
+        assert "--input" in args
+        iidx = args.index("--input")
+        assert args[iidx + 1] == "stdin"
+
 
 # ---------------------------------------------------------------------------
 # --json appended as last arg

@@ -145,9 +145,10 @@ class ToolExecutor:
 
         if input_artifact is not None:
             args.extend(self._route_input(input_artifact, command, params))
-
-        # Strip _input_target from params before serialization (harness-internal key)
-        serializable_params = {k: v for k, v in params.items() if k != "_input_target"}
+            # input was routed via _route_input — don't also serialize it as a param
+            serializable_params = {k: v for k, v in params.items() if k != "_input_target" and k != "input"}
+        else:
+            serializable_params = {k: v for k, v in params.items() if k != "_input_target"}
         args.extend(self._serialize_params(serializable_params, command))
         args.append("--json")  # ensure envelope output
 
