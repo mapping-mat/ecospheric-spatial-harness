@@ -172,3 +172,46 @@ def test_coerce_params_returns_normalized_keys() -> None:
     assert "output_crs" in coerced
     assert coerced["source"] == "@osm"
     assert coerced["output_crs"] == "EPSG:4326"
+
+
+# ---------------------------------------------------------------------------
+# Input auto-resolution (structural input fix)
+# ---------------------------------------------------------------------------
+
+
+class TestInputAutoResolutionValidation:
+    """The validator strips `input`/`--input` from the schema's required list
+    so calls missing `input` are not rejected (the harness resolves it)."""
+
+    def test_missing_input_passes_when_other_params_present(self) -> None:
+        """Case 3: schema requires `input` but params lacks it → ok=True,
+        given other required params are present."""
+        cmd = _cmd([
+            ParameterDescriptor("--input", "Input vector", "string", required=True),
+            ParameterDescriptor("--distance", "Buffer distance", "number", required=True),
+        ])
+        # Note: no `input` key in params — only `distance`
+        result = _validator.validate(_resolve(cmd, {"distance": 500}))
+        assert result.ok is True, f"Expected OK but got errors: {result.errors}"
+
+    def test_missing_genuinely_required_param_still_fails(self) -> None:
+        """Case 4: missing a genuinely required non-input param (e.g. distance)
+        should still fail validation."""
+        cmd = _cmd([
+            ParameterDescriptor("--input", "Input vector", "string", required=True),
+            ParameterDescriptor("--distance", "Buffer distance", "number", required=True),
+        ])
+        # No `input` (ok, auto-resolved) and no `distance` (bad, genuinely required)
+        result = _validator.validate(_resolve(cmd, {}))
+        assert result.ok is False
+        assert len(result.errors) >= 1
+        assert any("distance" in e for e in result.errors)
+
+    def test_input_present_still_validates(self) -> None:
+        """Regression: if model does pass `input`, validation still works."""
+        cmd = _cmd([
+            ParameterDescriptor("--input", "Input vector", "string", required=True),
+            ParameterDescriptor("--distance", "Buffer distance", "number", required=True),
+        ])
+        result = _validator.validate(_resolve(cmd, {"input": "/tmp/data.geojson", "distance": 500}))
+        assert result.ok is True, f"Expected OK but got errors: {result.errors}"

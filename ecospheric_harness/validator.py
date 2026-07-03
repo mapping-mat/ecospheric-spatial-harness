@@ -34,6 +34,9 @@ class ValidationResult:
 # Harness-internal key injected by the resolver; must not reach the schema.
 _INPUT_TARGET_KEY = "_input_target"
 
+# Harness-resolved structural parameter — strip from schema required list.
+_INPUT_SCHEMA_KEYS: frozenset[str] = frozenset({"input", "--input"})
+
 
 class SchemaValidator:
     """Validates :class:`ResolvedCall.params` against the ETP parameter schema."""
@@ -49,6 +52,13 @@ class SchemaValidator:
         4. Validate the cleaned params against the schema.
         """
         schema: dict[str, Any] = build_parameters_schema(resolved.command)
+
+        # Strip harness-resolved structural params from the schema's required
+        # list — the harness auto-injects `input`, so the model must not be
+        # penalised for omitting it.
+        required = schema.get("required")
+        if required:
+            schema["required"] = [r for r in required if r not in _INPUT_SCHEMA_KEYS]
 
         # Strip harness-internal keys before validation.
         cleaned: dict[str, Any] = {

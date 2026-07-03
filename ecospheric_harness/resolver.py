@@ -102,6 +102,17 @@ class IntentResolver:
 
     # -- private helpers ---------------------------------------------------
 
+    def command_needs_input(self, intent: str, params: dict[str, Any]) -> bool:
+        """True if any catalog entry for *intent* has input/--input as a
+        required parameter on its underlying command descriptor."""
+        for entry in self._catalog:
+            if entry.intent != intent:
+                continue
+            for p in entry.command.parameters:
+                if p.required and p.name in ("input", "--input"):
+                    return True
+        return False
+
     @staticmethod
     def _filter_with_artifact(
         candidates: list[IntentEntry],

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from etp.describe import CommandDescriptor, ParameterDescriptor
+
 
 from ecospheric_harness.artifact import Artifact
 from ecospheric_harness.intents import (
@@ -17,9 +19,6 @@ from ecospheric_harness.intents import (
     ResolutionError,
 )
 from ecospheric_harness.resolver import IntentResolver
-
-# We import CommandDescriptor from etp.describe (lightweight dataclass).
-from etp.describe import CommandDescriptor
 
 
 # ---------------------------------------------------------------------------
@@ -338,3 +337,78 @@ class TestFetchEnforcement:
         result = resolver.resolve("fetch", {"item": "a"}, None)
         assert isinstance(result, ResolutionError)
         assert "--list-assets" in result.message
+
+
+# ---------------------------------------------------------------------------
+# command_needs_input
+# ---------------------------------------------------------------------------
+
+
+class TestCommandNeedsInput:
+    """command_needs_input returns True when any catalog entry for the intent
+    has `input`/`--input` as a required parameter on its command descriptor."""
+
+    def _make_buffer_entry(self) -> IntentEntry:
+        """Create a buffer entry with --input as required."""
+        cmd = CommandDescriptor(
+            name="vector buffer",
+            description="Buffer vector features",
+            category="vector",
+            parameters=[
+                ParameterDescriptor("--input", "Input vector", "string", required=True),
+                ParameterDescriptor("--distance", "Buffer distance", "number", required=True),
+            ],
+            input_formats=["geojson", "shp"],
+            output_formats=["geojson", "shp"],
+            data_type="vector",
+        )
+        return IntentEntry(
+            intent="buffer",
+            description="Buffer vector features",
+            tool=_make_tool("ese"),
+            command=cmd,
+            required_params=["--distance"],
+        )
+
+    def _make_search_entry(self) -> IntentEntry:
+        """Create a search entry with no --input parameter."""
+        cmd = CommandDescriptor(
+            name="search",
+            description="Search OSM",
+            category="discovery",
+            parameters=[
+                ParameterDescriptor("--source", "Source", "string", required=True),
+                ParameterDescriptor("--bbox", "Bounding box", "string", required=True),
+            ],
+            input_formats=[],
+            output_formats=["json"],
+            data_type="vector",
+        )
+        return IntentEntry(
+            intent="search_osm",
+            description="Search OSM",
+            tool=_make_tool("edd"),
+            command=cmd,
+            required_params=["--source", "--bbox"],
+        )
+
+    def test_buffer_needs_input(self) -> None:
+        """Case 9: command_needs_input('buffer', {}) returns True."""
+        resolver = IntentResolver([self._make_buffer_entry()])
+        assert resolver.command_needs_input("buffer", {}) is True
+
+    def test_search_does_not_need_input(self) -> None:
+        """Case 10: command_needs_input('search_osm', {}) returns False."""
+        resolver = IntentResolver([self._make_search_entry()])
+        assert resolver.command_needs_input("search_osm", {}) is False
+
+    def test_unknown_intent_returns_false(self) -> None:
+        """Unknown intent (not in catalog) returns False."""
+        resolver = IntentResolver([self._make_search_entry()])
+        assert resolver.command_needs_input("nonexistent", {}) is False
+
+    def test_mixed_catalog_correct_per_intent(self) -> None:
+        """Mixed catalog: buffer needs input, search does not."""
+        resolver = IntentResolver([self._make_buffer_entry(), self._make_search_entry()])
+        assert resolver.command_needs_input("buffer", {}) is True
+        assert resolver.command_needs_input("search_osm", {}) is False

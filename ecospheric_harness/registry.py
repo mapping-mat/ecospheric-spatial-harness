@@ -39,6 +39,9 @@ PARAM_DENYLIST: frozenset[str] = frozenset({
     "--format",
 })
 
+# Harness-resolved structural parameter — never exposed to the model as required.
+_INPUT_PARAM_NAMES: frozenset[str] = frozenset({"input", "--input"})
+
 _EXCLUDED_CATEGORIES: frozenset[str] = frozenset({
     "diagnostic",
     "info",
@@ -221,7 +224,9 @@ class ToolRegistry:
         return [
             p.name
             for p in command.parameters
-            if p.required and p.name not in PARAM_DENYLIST
+            if p.required
+            and p.name not in PARAM_DENYLIST
+            and p.name not in _INPUT_PARAM_NAMES
         ]
 
     @classmethod

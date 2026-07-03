@@ -58,6 +58,7 @@ def _make_mock_orchestrator(
     )
     registry = MagicMock(spec=ToolRegistry)
     resolver = MagicMock(spec=IntentResolver)
+    resolver.command_needs_input.return_value = False  # default: commands don't need input
     validator = MagicMock(spec=SchemaValidator)
     executor = MagicMock(spec=ToolExecutor)
     ws = WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000)
@@ -1636,3 +1637,206 @@ class TestInputArtifactIdFromInput:
         call_args = resolver.resolve.call_args
         resolved_artifact = call_args[0][2]
         assert resolved_artifact is record
+
+
+# ---------------------------------------------------------------------------
+# Input auto-resolution: structural fix tests
+# ---------------------------------------------------------------------------
+
+
+class TestInputAutoResolution:
+    """Tests for the structural `input` auto-resolution fix.
+
+    The orchestrator auto-resolves the `input` parameter from the current
+    artifact so the model doesn't need to pass it.
+    """
+
+    @patch("ecospheric_harness.orchestrator.httpx")
+    @patch("ecospheric_harness.orchestrator.available_intents")
+    def test_search_then_buffer_auto_resolves(
+        self, mock_menu: MagicMock, mock_httpx: MagicMock, tmp_path: Path,
+    ) -> None:
+        """Case 5: search produces artifact, then buffer with no `input` key
+        succeeds and auto-resolves the current artifact."""
+        orch, artifacts, _, _ = _make_mock_orchestrator(tmp_path)
+
+        # Set up resolver to handle both search_osm and buffer
+        search_cmd = CommandDescriptor(
+            name="search",
+            description="Search OSM",
+            category="discovery",
+            parameters=[
+                ParameterDescriptor(name="--source", description="source", type="string", required=True),
+                ParameterDescriptor(name="--bbox", description="bbox", type="string", required=True),
+            ],
+            input_formats=[],
+            output_formats=["json"],
+            data_type="vector",
+        )
+        buffer_cmd = CommandDescriptor(
+            name="vector buffer",
+            description="Buffer vector features",
+            category="vector",
+            parameters=[
+                ParameterDescriptor(name="--input", description="input", type="string", required=True),
+                ParameterDescriptor(name="--distance", description="distance", type="number", required=True),
+            ],
+            input_formats=["geojson", "shp"],
+            output_formats=["geojson", "shp"],
+            data_type="vector",
+        )
+        tool = RegisteredTool(name="ese", version="0.5.0", binary="ese", commands=[search_cmd, buffer_cmd])
+
+        search_resolved = ResolvedCall(tool=tool, command=search_cmd, params={"source": "@osm", "bbox": "-121,38,-120,39"})
+        buffer_resolved = ResolvedCall(tool=tool, command=buffer_cmd, params={"distance": "500m"})
+
+        orch._resolver.resolve.side_effect = [search_resolved, buffer_resolved]
+        orch._resolver.command_needs_input.side_effect = lambda intent, params: intent == "buffer"
+
+        mock_menu.return_value = [IntentOption(
+            intent="search_osm", description="Search OSM", required_params=["bbox"],
+        )]
+        mock_httpx.post.side_effect = [
+            # Step 1: search_osm → produces artifact
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("search_osm", params={"bbox": "-121,38,-120,39"})}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+            # Step 2: buffer with distance only (no input)
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("buffer", params={"distance": "500m"})}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+            # Terminal
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("complete", summary="done")}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+        ]
+
+        result = orch.run("search OSM then buffer")
+
+        # Both steps should have succeeded
+        assert len(result.steps) == 2
+        assert result.steps[0].intent == "search_osm"
+        assert result.steps[0].status == "success"
+        assert result.steps[1].intent == "buffer"
+        assert result.steps[1].status == "success"
+
+        # The resolver should have been called with the search artifact
+        # as input_artifact for the buffer step
+        buffer_call = orch._resolver.resolve.call_args_list[1]
+        resolved_artifact = buffer_call[0][2]  # third positional arg
+        assert resolved_artifact is not None
+
+    @patch("ecospheric_harness.orchestrator.httpx")
+    @patch("ecospheric_harness.orchestrator.available_intents")
+    def test_no_artifacts_buffer_returns_error(
+        self, mock_menu: MagicMock, mock_httpx: MagicMock, tmp_path: Path,
+    ) -> None:
+        """Case 6: fresh session with no artifacts, model emits buffer →
+        clear error turn with message about needing input artifact."""
+        orch, _, _, _ = _make_mock_orchestrator(tmp_path)
+
+        # Set up resolver: buffer needs input
+        orch._resolver.command_needs_input.return_value = True
+
+        mock_menu.return_value = [IntentOption(
+            intent="buffer", description="Buffer", required_params=["distance"],
+        )]
+        mock_httpx.post.side_effect = [
+            # Step 1: buffer (fails — no artifact)
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("buffer", params={"distance": "500m"})}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+            # Recovery: complete
+            MagicMock(
+                json=MagicMock(return_value={
+                    "choices": [{"message": _make_model_response("complete", summary="gave up")}],
+                }),
+                raise_for_status=MagicMock(),
+            ),
+        ]
+
+        result = orch.run("buffer 500m")
+
+        # Should have completed (the error was sent back to model)
+        assert isinstance(result, PipelineResult)
+
+        # The error turn should have been sent to the model
+        # Check the second httpx call's messages for the error
+        second_call_messages = mock_httpx.post.call_args_list[1].kwargs["json"]["messages"]
+        tool_messages = [m for m in second_call_messages if m.get("role") == "tool"]
+        assert len(tool_messages) >= 1
+        error_content = json.loads(tool_messages[0]["content"])
+        assert "last_result" in error_content
+        assert "error" in error_content["last_result"].get("status", "")
+        assert "input artifact" in error_content["last_result"].get("message", "").lower()
+
+    def test_explicit_input_artifact_id_takes_precedence(
+        self, tmp_path: Path,
+    ) -> None:
+        """Case 7: explicit `input_artifact_id` still works and takes
+        precedence over `.current`."""
+        orch, artifact_registry, resolver, _ = _make_mock_orchestrator(tmp_path)
+
+        # Register two artifacts with distinct step_numbers
+        fpath1 = tmp_path / "art1.tif"
+        fpath1.write_bytes(b"data1")
+        record1 = artifact_registry.register(
+            path=fpath1, format="geotiff", data_type="raster",
+            intent="search_osm", step_number=1,
+        )
+        fpath2 = tmp_path / "art2.tif"
+        fpath2.write_bytes(b"data2")
+        record2 = artifact_registry.register(
+            path=fpath2, format="geotiff", data_type="raster",
+            intent="search_osm", step_number=2,
+        )
+
+        # record2 is now `current` (most recent)
+        assert artifact_registry.current is record2
+
+        # Explicitly request record1 as input
+        params = {"input_artifact_id": record1.artifact_id}
+        result, error_turn = orch._handle_operation("clip", params)
+
+        assert error_turn is None
+        call_args = resolver.resolve.call_args
+        resolved_artifact = call_args[0][2]
+        # Should be record1 (explicit), NOT record2 (current)
+        assert resolved_artifact is record1
+        assert resolved_artifact is not artifact_registry.current
+
+    def test_input_artifact_id_string_promoted(
+        self, tmp_path: Path,
+    ) -> None:
+        """Case 8: model passing `input: "search_osm_001"` (artifact ID)
+        still gets promoted correctly to input_artifact_id."""
+        orch, artifact_registry, resolver, _ = _make_mock_orchestrator(tmp_path)
+
+        fpath = tmp_path / "art.tif"
+        fpath.write_bytes(b"data")
+        record = artifact_registry.register(
+            path=fpath, format="geotiff", data_type="raster", intent="search_osm",
+        )
+
+        # Model passes input=<artifact_id> (string matching an artifact)
+        params = {"input": record.artifact_id}
+        result, error_turn = orch._handle_operation("clip", params)
+
+        assert error_turn is None
+        call_args = resolver.resolve.call_args
+        resolved_artifact = call_args[0][2]
+        assert resolved_artifact is record
+        # `input` should have been removed from params
+        assert "input" not in call_args[0][1]

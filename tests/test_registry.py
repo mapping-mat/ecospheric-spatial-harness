@@ -670,7 +670,7 @@ class TestParamDenylist:
         tool = RegisteredTool(name="test", version="1.0", binary="test", commands=[desc])
         catalog = ToolRegistry.build_catalog([tool], {})
         assert len(catalog) == 1
-        assert "--input" in catalog[0].required_params
+        assert "--input" not in catalog[0].required_params
         assert "--output" not in catalog[0].required_params
         assert "--json" not in catalog[0].required_params
         assert "--format" not in catalog[0].required_params
@@ -1075,3 +1075,68 @@ class TestSearchFallbackWithoutSources:
             assert entry.source.startswith("@")
             expected_prefix = entry.intent.replace("search_", "")
             assert entry.source == f"@{expected_prefix}"
+
+
+# ---------------------------------------------------------------------------
+# Input param stripped from required_params (AC: structural input fix)
+# ---------------------------------------------------------------------------
+
+
+class TestInputParamStrippedFromRequired:
+    """`input`/`--input` is stripped from required_params so the model
+    does not see it as a parameter it needs to provide."""
+
+    def test_input_not_in_required_params(self) -> None:
+        """Case 1: a command with `input` as required does NOT include it
+        in required_params (the harness resolves it structurally)."""
+        data = {
+            "name": "vector buffer",
+            "description": "Buffer vector features",
+            "category": "vector",
+            "parameters": [
+                {"name": "--input", "description": "Input vector", "type": "string", "required": True},
+                {"name": "--distance", "description": "Buffer distance", "type": "number", "required": True},
+                {"name": "--output", "description": "Output vector", "type": "string", "required": True},
+            ],
+        }
+        desc = _reconstruct_descriptor(data)
+        tool = RegisteredTool(name="ese", version="0.8.0", binary="ese", commands=[desc])
+        catalog = ToolRegistry.build_catalog([tool], {})
+        assert len(catalog) == 1
+        assert "--input" not in catalog[0].required_params
+        assert "input" not in catalog[0].required_params
+
+    def test_other_required_params_still_present(self) -> None:
+        """Case 2: other required params (e.g. `distance`) still appear."""
+        data = {
+            "name": "vector buffer",
+            "description": "Buffer vector features",
+            "category": "vector",
+            "parameters": [
+                {"name": "--input", "description": "Input vector", "type": "string", "required": True},
+                {"name": "--distance", "description": "Buffer distance", "type": "number", "required": True},
+                {"name": "--output", "description": "Output vector", "type": "string", "required": True},
+            ],
+        }
+        desc = _reconstruct_descriptor(data)
+        tool = RegisteredTool(name="ese", version="0.8.0", binary="ese", commands=[desc])
+        catalog = ToolRegistry.build_catalog([tool], {})
+        assert len(catalog) == 1
+        # --distance is genuinely required and NOT in the denylist or input set
+        assert "--distance" in catalog[0].required_params
+
+    @patch("ecospheric_harness.registry.subprocess.run")
+    def test_buffer_command_from_ese_has_no_input_in_required(
+        self, mock_run: MagicMock,
+    ) -> None:
+        """Integration: ESE's `vector buffer` command should not expose
+        --input in required_params from the full catalog."""
+        mock_run.side_effect = _mock_subprocess_run
+        tools = ToolRegistry.discover_tools(["ese"])
+        catalog = ToolRegistry.build_catalog(tools, {})
+        buffer_entries = [e for e in catalog if e.intent == "buffer"]
+        assert len(buffer_entries) == 1
+        entry = buffer_entries[0]
+        assert "--input" not in entry.required_params
+        # But --distance should still be there
+        assert "--distance" in entry.required_params

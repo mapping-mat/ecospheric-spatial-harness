@@ -76,7 +76,9 @@ Rules:
 7. Artifacts are named with stable IDs (e.g. clip_001, slope_002). The turn state
    shows the 2 most recent artifacts in detail plus a compact list of all artifacts.
    To use a specific past artifact as input, include `input_artifact_id` in params.
-   If no input_artifact_id is specified, the most recent artifact is used.
+   If no input_artifact_id is specified, the most recent artifact is used automatically.
+   Do NOT include `input` in params — the harness resolves it for you. Include
+   `input_artifact_id` only when referencing a specific past artifact.
 8. Search results appear in turn state as "search_results". For STAC search,
    results are metadata — pass "results_file" to fetch as the "stac" param.
    For direct-data search (OSM, geoBoundaries), the output IS the artifact
@@ -331,6 +333,16 @@ class Orchestrator:
                 )
         else:
             input_artifact = self._artifact_registry.current
+
+        # Structural input requirement: if the underlying command needs an
+        # input artifact and none is available, fail fast with a clear message.
+        command_needs_input = self._resolver.command_needs_input(intent, params)
+        if command_needs_input and input_artifact is None:
+            return None, self._make_error_turn(
+                f"'{intent}' requires an input artifact, but none exists yet. "
+                "Run a search or fetch step first to produce one.",
+                intent,
+            )
 
         # b. Resolve.
         resolved = self._resolver.resolve(intent, params, input_artifact)
