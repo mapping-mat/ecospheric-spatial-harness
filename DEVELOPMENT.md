@@ -37,7 +37,24 @@
 ## Known Issues (non-blocking)
 
 - `ese plugins --json` returns exit 2 — limits ESE search intents
-- DEVELOPMENT.md previously stale (now updated)
+- Phase 1.5 stream() error handling gaps (4 minor items from judge review — deferred to Phase 4)
+
+## Phase 2 — Spatial Validation + Data-Size Strategy (SCOPED)
+
+See `PHASE2_SCOPE.md` for full breakdown. 6 slices:
+
+| Slice | Description | Effort | Dependencies |
+|-------|-------------|--------|--------------|
+| 2.1 | PreflightResult + Resolution enum upgrade | Small | None |
+| 2.2 | 14 spatial preflight checks | Large | 2.1 |
+| 2.3 | Output validation (raster/vector/intent) | Medium | 2.1 |
+| 2.4 | Memory budget + command classification | Medium | 2.1 |
+| 2.5 | WorkspaceManager extensions | Small | 2.1 |
+| 2.6 | COG default + integration tests | Small | 2.2, 2.3 |
+
+Recommended order: 2.1 → (2.2 + 2.3 parallel) → 2.4 → 2.5 → 2.6
+
+~4 new files, ~14 modified, ~90-95 new tests.
 
 ## Test Count: 345
 ## Source Files: 22
