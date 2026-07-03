@@ -9,6 +9,10 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from ecospheric_harness.artifact_metadata import (
+    extract_crs,
+    extract_or_derive_bbox,
+)
 from ecospheric_harness.artifact_registry import ArtifactRegistry
 from ecospheric_harness.executor import ToolExecutor
 from ecospheric_harness.intents import CorrectionResult
@@ -156,17 +160,19 @@ class CorrectionHandler:
         # Keep the target step marked as undone — the new step replaces it in provenance.
         # (Don't clear target.undone; the new step carries the redo result.)
 
-        # Register new artifact
+        # Register new artifact — use the shared metadata helpers so
+        # ESE's `to_crs`/`from_crs` and provenance `crs_working_crs`
+        # keys are recognized, and bbox is derived from the output
+        # file when the envelope is silent.
+        redo_data_type = result.envelope.get("data", {}).get("data_type", "unknown")
         new_artifact = self._registry.register(
             path=result.output_path,
             format=result.envelope.get("data", {}).get("format", "unknown"),
-            data_type=result.envelope.get("data", {}).get("data_type", "unknown"),
-            crs=result.envelope.get("data", {}).get("crs")
-                or (result.envelope.get("data", {}).get("crs_meta", {}) or {}).get("crs")
-                or result.envelope.get("data", {}).get("output_crs"),
-            bbox=result.envelope.get("data", {}).get("bbox")
-                or result.envelope.get("data", {}).get("bounds")
-                or result.envelope.get("data", {}).get("extent"),
+            data_type=redo_data_type,
+            crs=extract_crs(result.envelope),
+            bbox=extract_or_derive_bbox(
+                result.envelope, result.output_path, data_type=redo_data_type,
+            ),
             step_number=len(self._steps) + 1,
             envelope=result.envelope,
             parent_ids=[input_artifact.artifact_id] if input_artifact else [],

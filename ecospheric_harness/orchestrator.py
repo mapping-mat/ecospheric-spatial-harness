@@ -11,6 +11,10 @@ from typing import Any
 
 import httpx  # kept for backward-compat with test patching (see _call_model)
 
+from ecospheric_harness.artifact_metadata import (
+    extract_crs,
+    extract_or_derive_bbox,
+)
 from ecospheric_harness.artifact_registry import ArtifactRecord, ArtifactRegistry
 from ecospheric_harness.output_validator import OutputValidator
 from ecospheric_harness.params import normalize_params
@@ -507,16 +511,23 @@ class Orchestrator:
 
         # Artifact registration: skip for pure metadata (STAC search)
         if data_type != "metadata":
+            # CRS/bbox extraction must use the shared helper so ESE's
+            # `to_crs`/`from_crs` (proj transform) and provenance
+            # `crs_working_crs` keys are recognized in addition to
+            # the canonical `data.crs`.  bbox is derived from the
+            # output file when the envelope is silent.
+            artifact_crs = extract_crs(exec_result.envelope)
+            artifact_bbox = extract_or_derive_bbox(
+                exec_result.envelope,
+                exec_result.output_path,
+                data_type=data_type,
+            )
             self._artifact_registry.register(
                 path=exec_result.output_path,
                 format=fmt,
                 data_type=data_type,
-                crs=exec_result.envelope.get("data", {}).get("crs")
-                    or (exec_result.envelope.get("data", {}).get("crs_meta", {}) or {}).get("crs")
-                    or exec_result.envelope.get("data", {}).get("output_crs"),
-                bbox=exec_result.envelope.get("data", {}).get("bbox")
-                    or exec_result.envelope.get("data", {}).get("bounds")
-                    or exec_result.envelope.get("data", {}).get("extent"),
+                crs=artifact_crs,
+                bbox=artifact_bbox,
                 step_number=step_number,
                 envelope=exec_result.envelope,
                 parent_ids=parent_ids,
