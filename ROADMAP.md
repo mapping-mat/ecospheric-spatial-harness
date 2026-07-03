@@ -11,7 +11,7 @@ Four packages built, tested, in private GitHub repos:
 | **ETP** | Shared protocol: envelopes, command descriptors, parameter schemas, error types | 271 |
 | **EDD** | Data discovery/fetch — 9 source plugins (OSM, STAC, geoBoundaries, etc), 13 commands | 744 |
 | **ESE** | Geospatial processing — 96 commands across raster, vector, pointcloud, hydro, proj | 1,917 |
-| **ESH** | Multi-turn LLM orchestration — intent protocol, two-artifact window, undo/redo, preflight | 252 |
+| **ESH** | Multi-turn LLM orchestration — intent protocol, named artifact registry, undo/redo, preflight | 345 |
 
 **Total: 3,184 tests. All passing.**
 
@@ -125,15 +125,29 @@ The current implementation physically deletes artifacts when they fall outside t
 - [ ] Run N=3 per case for variance
 - [ ] Record baseline token cost and latency
 
-#### 1b — First Real Query
+#### 1b — First Real Query ✅ COMPLETE (2026-07-02)
 
-- [ ] Set `OPENROUTER_API_KEY` in env (or use Ollama)
-- [ ] `--list-tools` and `--list-intents` verification
-- [ ] First single-step query
-- [ ] First multi-step query
-- [ ] Verify spatial correctness of output
+- [x] Set `OPENROUTER_API_KEY` in env
+- [x] `--list-tools` and `--list-intents` verification (2 tools, 11 intents)
+- [x] First single-step query (OSM water features near Chico)
+- [x] First multi-step query (search buildings → reproject → buffer 500m)
+- [x] Verify spatial correctness of output (2,526 features, UTM 10N, 20.6x area expansion)
+- [x] Eval harness passes all fixtures (25/25)
 
-**Validation criteria:** 2-3 step pipeline produces valid spatial output in the correct location, eval harness passes all fixtures.
+**Validation criteria:** 2-3 step pipeline produces valid spatial output in the correct location, eval harness passes all fixtures. ✅
+
+**Bugs found and fixed during Phase 1b:**
+- Redaction regex corrupting JSON output (security.py `[/\S]*` → `[A-Za-z0-9_\-./]*`)
+- Parameter name normalization (`params.py` — strip `--` prefixes, hyphens→underscores)
+- Positional input fallback for commands without `--input` param
+- ESE GeoParquet read via magic bytes (`_is_parquet_file` — extension + PAR1 sniff)
+- ESE GeoParquet write via `gpd.to_parquet` (bypass GDAL's libduckdb.so dependency)
+- Artifact ID resolution from `input` param (promote to `input_artifact_id`)
+- Double-input serialization (strip `input` from serialized params when artifact routed)
+- Structural input auto-resolution (strip `input` from `required_params` + schema `required`)
+- Output file extension based on artifact format (`.parquet` not `.bin`)
+
+**Test count:** 345 (ESH) + ESE io_utils tests
 
 ---
 
