@@ -7,15 +7,17 @@ with Server-Sent Event streaming.
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+import json
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field
 
 from ecospheric_harness.session_manager import SessionManager
 from ecospheric_harness.web.sse import format_sse_event, QueueEventRelay
+from ecospheric_harness.web.tiles import serve_tile, get_tile_bounds, render_preview_png
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +109,95 @@ def create_app(harness_kwargs: dict[str, Any] | None = None) -> FastAPI:
         }
 
     # ------------------------------------------------------------------
+    # Artifact preview + tiles
+    # ------------------------------------------------------------------
+
+    def _find_artifact(artifact_id: str) -> Any:
+        """Search all sessions for an artifact by ID."""
+        sm: SessionManager = app.state.session_manager
+        for session in sm.list_sessions():
+            sid = session["session_id"]
+            harness = sm.get(sid)
+            if harness is None:
+                continue
+            artifact = harness._artifact_registry.get(artifact_id)
+            if artifact is not None:
+                return artifact
+        return None
+
+    @app.get("/api/artifact/{artifact_id}/preview")
+    async def artifact_preview(artifact_id: str) -> Response:
+        """Serve vector artifacts as GeoJSON, raster metadata as JSON."""
+        artifact = _find_artifact(artifact_id)
+        if artifact is None:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+
+        path = Path(artifact.path)
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="Artifact file not found on disk")
+
+        data_type = artifact.data_type
+
+        if data_type == "vector":
+            # Read via geopandas and return as GeoJSON
+            import geopandas as gpd
+            gdf = gpd.read_file(path)
+            # Reproject to EPSG:4326 for Leaflet if needed
+            if gdf.crs is not None and str(gdf.crs) != "EPSG:4326":
+                gdf = gdf.to_crs("EPSG:4326")
+            geojson = json.loads(gdf.to_json())
+            return Response(
+                content=json.dumps(geojson),
+                media_type="application/json",
+            )
+        elif data_type == "raster":
+            # Return raster metadata for the frontend
+            try:
+                meta = get_tile_bounds(path)
+                return Response(
+                    content=json.dumps(meta),
+                    media_type="application/json",
+                )
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to read raster metadata: {exc}",
+                )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Preview not supported for data_type '{data_type}'",
+            )
+
+    @app.get("/api/artifact/{artifact_id}/tiles/{z}/{x}/{y}.png")
+    async def artifact_tile(artifact_id: str, z: int, x: int, y: int) -> Response:
+        """Serve a single XYZ tile from a raster artifact as PNG."""
+        artifact = _find_artifact(artifact_id)
+        if artifact is None:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+
+        path = Path(artifact.path)
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="Artifact file not found on disk")
+
+        if artifact.data_type != "raster":
+            raise HTTPException(
+                status_code=400,
+                detail="Tile serving is only available for raster artifacts",
+            )
+
+        try:
+            png_bytes = serve_tile(path, z, x, y)
+            return Response(content=png_bytes, media_type="image/png")
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Raster file not found")
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Tile rendering failed: {exc}",
+            )
+
+    # ------------------------------------------------------------------
     # Chat with SSE streaming
     # ------------------------------------------------------------------
 
@@ -132,41 +223,66 @@ def create_app(harness_kwargs: dict[str, Any] | None = None) -> FastAPI:
             The orchestrator runs in a thread-pool worker.  Events are
             bridged into the async world via :class:`QueueEventRelay`.
 
-            The session lock is released in the ``finally`` block so it
-            is guaranteed to be freed after the stream completes or errors.
+            The session lock is released in the ``finally`` block **after
+            the orchestrator thread completes**, ensuring no background
+            mutation occurs after lock release.
             """
-            try:
-                relay = QueueEventRelay()
-                relay.set_loop(asyncio.get_running_loop())
+            relay = QueueEventRelay()
+            relay.set_loop(asyncio.get_running_loop())
 
+            # Track the executor future so we can wait for it before
+            # releasing the lock — prevents the race where a client
+            # disconnects, the lock is released, but the orchestrator
+            # is still mutating state in the background.
+            future: asyncio.Future | None = None
+
+            try:
                 def run_orchestrator() -> None:
                     """Thread-pool target: run the sync orchestrator."""
                     try:
-                        # TODO: Full event instrumentation (turn_start, tool_call,
-                        #       artifact per step) requires orchestrator hooks.
-                        #       For now we run to completion and push a single
-                        #       "done" event.
+                        relay.push(format_sse_event("turn_start", {"prompt": req.prompt}))
+
                         result = harness.run(req.prompt)
-                        relay.push(
-                            format_sse_event("done", {"status": "complete"})
-                        )
+
+                        # Emit artifact events for each step produced
+                        for step in harness._orchestrator._steps:
+                            if step.status == "success" and step.envelope:
+                                data = step.envelope.get("data", {})
+                                relay.push(format_sse_event("artifact", {
+                                    "id": step.output_path.stem if step.output_path else "",
+                                    "data_type": data.get("data_type", "unknown"),
+                                    "format": data.get("format", "unknown"),
+                                    "crs": data.get("crs") or data.get("output_crs"),
+                                    "bbox": data.get("bbox") or data.get("bounds"),
+                                }))
+
+                        relay.push(format_sse_event("turn_end", {
+                            "status": "success",
+                            "steps": len(harness._orchestrator._steps),
+                        }))
+                        relay.push(format_sse_event("done", {"status": "complete"}))
                     except Exception as exc:
-                        relay.push(
-                            format_sse_event("error", {"message": str(exc)})
-                        )
+                        relay.push(format_sse_event("error", {"message": str(exc)}))
                     finally:
                         relay.push(None)  # sentinel
 
-                # Fire-and-forget in the default thread-pool executor.
-                asyncio.get_running_loop().run_in_executor(
+                # Submit to thread pool and track the future.
+                future = asyncio.get_running_loop().run_in_executor(
                     None, run_orchestrator,
                 )
 
                 async for event in relay:
                     yield event
+
+                # Wait for the executor future to complete before releasing
+                # the lock. This ensures the orchestrator thread is fully
+                # done mutating state before another request can acquire
+                # the session.
+                if future is not None:
+                    await future
             finally:
-                # Always release the session lock — the stream may have been
-                # cancelled by the client or raised an unhandled error.
+                # Always release the session lock — after the orchestrator
+                # thread has completed (or errored).
                 sm.release(req.session_id)
 
         return StreamingResponse(

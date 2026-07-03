@@ -141,3 +141,66 @@ def test_chat_409_when_session_busy(client: TestClient):
 
     # Cleanup
     sm.release(session_id)
+
+
+# ---------------------------------------------------------------------------
+# 7. GET /api/artifact/{id}/preview — 404 for unknown artifact
+# ---------------------------------------------------------------------------
+
+
+def test_artifact_preview_404(client: TestClient):
+    """Preview endpoint returns 404 for non-existent artifact."""
+    resp = client.get("/api/artifact/nonexistent-id/preview")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 8. GET /api/artifact/{id}/tiles/{z}/{x}/{y}.png — 404 for unknown artifact
+# ---------------------------------------------------------------------------
+
+
+def test_artifact_tile_404(client: TestClient):
+    """Tile endpoint returns 404 for non-existent artifact."""
+    resp = client.get("/api/artifact/nonexistent-id/tiles/0/0/0.png")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 9. POST /api/chat — SSE stream contains turn_start and done events
+# ---------------------------------------------------------------------------
+
+
+def test_chat_sse_contains_events(client: TestClient):
+    """The SSE stream from /api/chat should contain turn_start and done/error events."""
+    # Create a real session
+    resp = client.post("/api/session")
+    session_id = resp.json()["session_id"]
+
+    # Send a chat request — the TestClient will consume the full stream
+    resp = client.post(
+        "/api/chat",
+        json={"session_id": session_id, "prompt": "hello"},
+    )
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers.get("content-type", "")
+
+    # Parse the SSE stream — should have turn_start and either done or error
+    # (error is expected when no OPENROUTER_API_KEY is set in test env)
+    body = resp.text
+    assert "event: turn_start" in body
+    assert "event: done" in body or "event: error" in body
+
+
+# ---------------------------------------------------------------------------
+# 10. GET /api/session/{id}/artifacts — empty list for new session
+# ---------------------------------------------------------------------------
+
+
+def test_artifacts_empty_for_new_session(client: TestClient):
+    """A fresh session should have zero artifacts."""
+    resp = client.post("/api/session")
+    session_id = resp.json()["session_id"]
+
+    resp = client.get(f"/api/session/{session_id}/artifacts")
+    assert resp.status_code == 200
+    assert resp.json()["artifacts"] == []

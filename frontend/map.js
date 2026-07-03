@@ -103,22 +103,30 @@ export function addVectorLayer(geojson, artifactId) {
 export function addRasterLayer(artifactId, bbox) {
   removeLayer(artifactId)
 
+  const tileOptions = {
+    opacity: 0.85,
+    errorTileUrl: '',
+    attribution: `Artifact: ${artifactId.slice(0, 8)}`,
+  }
+
+  // Set bounds constraint only if bbox is provided
+  if (bbox && bbox.length === 4) {
+    tileOptions.bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
+  }
+
   const tileLayer = L.tileLayer(
     `/api/artifact/${artifactId}/tiles/{z}/{x}/{y}.png`,
-    {
-      opacity: 0.85,
-      errorTileUrl: '',
-      bounds: [[bbox[1], bbox[0]], [bbox[3], bbox[2]]],
-      attribution: `Artifact: ${artifactId.slice(0, 8)}`,
-    }
+    tileOptions
   ).addTo(map)
 
-  // Zoom to bbox: [west, south, east, north]
-  const southWest = L.latLng(bbox[1], bbox[0])
-  const northEast = L.latLng(bbox[3], bbox[2])
-  const bounds = L.latLngBounds(southWest, northEast)
-  if (bounds.isValid()) {
-    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 })
+  // Zoom to bbox if available: [west, south, east, north]
+  if (bbox && bbox.length === 4) {
+    const southWest = L.latLng(bbox[1], bbox[0])
+    const northEast = L.latLng(bbox[3], bbox[2])
+    const bounds = L.latLngBounds(southWest, northEast)
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 })
+    }
   }
 
   artifactLayers.set(artifactId, tileLayer)

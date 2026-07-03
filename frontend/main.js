@@ -299,9 +299,9 @@ async function handleArtifactClick(artifactId, dataType, bboxStr) {
       addRasterLayer(artifactId, bbox)
       addMessage('system', `Added raster layer: ${artifactId.slice(0, 8)}`, true)
     } else {
-      // Try zooming to bbox from artifact data
-      addRasterLayer(artifactId, bbox || [-122, 39, -121, 40])
-      addMessage('system', `Added raster layer (default bounds): ${artifactId.slice(0, 8)}`, true)
+      // No bbox available — add layer without zooming
+      addRasterLayer(artifactId, null)
+      addMessage('system', `Added raster layer (no bounds): ${artifactId.slice(0, 8)}`, true)
     }
   }
 }
