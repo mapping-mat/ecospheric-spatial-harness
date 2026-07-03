@@ -152,7 +152,12 @@ def create_app(harness_kwargs: dict[str, Any] | None = None) -> FastAPI:
         if data_type == "vector":
             # Read via geopandas and return as GeoJSON
             import geopandas as gpd
-            gdf = gpd.read_file(path)
+            # Use read_parquet for parquet files to avoid libduckdb dependency
+            # in pyogrio's read_file path
+            if path.suffix in (".parquet", ".geoparquet"):
+                gdf = gpd.read_parquet(path)
+            else:
+                gdf = gpd.read_file(path)
             # Reproject to EPSG:4326 for Leaflet if needed
             if gdf.crs is not None and str(gdf.crs) != "EPSG:4326":
                 gdf = gdf.to_crs("EPSG:4326")
