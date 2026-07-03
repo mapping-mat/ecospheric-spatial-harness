@@ -19,6 +19,7 @@
 | 2.3 — Memory Budget + Command Classification | ✅ | 2026-07-03 | 522 | `a489f01` |
 | 2.4 — WorkspaceManager Extensions | ✅ | 2026-07-03 | 522 | `a489f01` |
 | 2.5 — COG Default + Integration Tests | ✅ | 2026-07-03 | 519 | `2d36e70` |
+| 2.6 — Post-Review Fixes (Sonnet 5) | ✅ | 2026-07-03 | 519 | `5a96960` |
 | 3 — Web UI | ⬜ NEXT | — | — | — |
 | 4 — Hardening | ⬜ | — | — | — |
 
@@ -130,13 +131,27 @@ ecospheric_harness/
 ### Checks 11-14 deferred to Phase 4
 Band validity, categorical resampling guard, datum transformation, NoData awareness, pixel alignment — need richer ESE command metadata.
 
+### 2.6 — Post-Review Fixes (Sonnet 5) (`5a96960`)
+- Reordered preflight pipeline: SSRF + disk first (cheap, safety-critical), spatial checks, memory last
+- Cached `_resolve_secondary_input()` — resolve once, pass to CRS + extent checks (eliminates duplicate subprocess)
+- Surface secondary-read errors in `_check_extent_intersection` as MODEL_DISCRETION (was silently discarded)
+- Documented memory budget gap when `input_artifact is None` (RLIMIT_AS backstop)
+- Added `disk_limit_bytes` public property to ArtifactRegistry (replaces private `_disk_limit` access)
+- Replaced bare `except Exception: pass` in output_vs_intent with diagnostic messages (3 places)
+- Added explicit comment at `file_exists` call site about warning-level design decision
+- Extracted `_append_rejected_step()` helper in orchestrator (deduplicated 3 inline StepRecord blocks)
+- Removed unused imports from output_validator.py
+- Sonnet 5 review: ACCEPT — all 8 fixes confirmed correct, no new issues
+
 ## Known Issues (non-blocking)
 
 - `ese plugins --json` returns exit 2 — limits ESE search intents
 - Phase 1.5 stream() error handling gaps (4 minor items — deferred to Phase 4)
 - Phase 2.2 `file_exists` check is warning-level (could be tightened to hard-fail for empty files)
-- Phase 2.2 bare `except Exception` in output_vs_intent could log warnings
 - Memory multiplier heuristics uncalibrated (Phase 4 instruments actual peak RSS)
+- Memory budget skipped when `input_artifact is None` (search/fetch ops — RLIMIT_AS is backstop, Phase 4 may add output-size estimation)
+- Checks 11-14 deferred to Phase 4 (band validity, categorical resampling, datum transformation, NoData, pixel alignment)
+- M2 backward-compat: `_resolve_secondary_input` returning `(None, None)` triggers unnecessary re-resolution (benign, idempotent)
 
 ## CLI Flags Summary
 
