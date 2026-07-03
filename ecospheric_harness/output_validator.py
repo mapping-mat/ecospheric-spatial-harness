@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -39,10 +37,14 @@ class OutputValidator:
 
         # 1. File exists and non-empty (warning-level — real tools always write;
         # test mocks may not. Actual tool would have errored if it couldn't write.)
+        # NOTE: file_exists failures are NOT added to the errors list below —
+        # they are reported as check results but don't cause validation to fail.
+        # This is intentional: a tool returning success (exit 0) but with a
+        # missing output file indicates a deeper anomaly worth investigating,
+        # not a hard validation failure. Do not add `errors.append(...)` here
+        # without understanding this design decision.
         check_result = self._check_file_exists(output_path)
         checks.append(check_result)
-        # File-not-found is a warning, not a hard failure —
-        # the tool itself would have errored if it couldn't write the output.
 
         # 2. Data-type-specific checks
         data_type = envelope.get("data", {}).get("data_type", "unknown")
@@ -152,8 +154,9 @@ class OutputValidator:
                     out = pyproj.CRS(str(output_crs))
                     if not req.equals(out):
                         issues.append(f"Reproject output CRS {output_crs} does not match requested {requested_crs}")
-                except Exception:
-                    pass  # Can't compare, skip
+                except Exception as exc:
+                    # Can't compare CRS — log diagnostic, don't silently pass
+                    issues.append(f"Could not verify CRS match (pyproj error: {exc})")
 
         # Clip: output extent should intersect input extent
         if "clip" in cmd_name:
@@ -161,27 +164,31 @@ class OutputValidator:
             if clip_bounds and output_bbox and input_artifact and input_artifact.bbox:
                 try:
                     out_bbox = list(output_bbox) if not isinstance(output_bbox, (list, tuple)) else output_bbox
-                    if len(out_bbox) == 4:
+                    if len(out_bbox) != 4:
+                        issues.append(f"Clip output bbox has unexpected length {len(out_bbox)}: {out_bbox}")
+                    else:
                         from shapely.geometry import box
                         out_extent = box(*out_bbox)
                         in_extent = box(*input_artifact.bbox)
                         if not out_extent.intersects(in_extent):
                             issues.append("Clip output extent does not intersect input extent")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    issues.append(f"Could not verify clip extent intersection ({exc})")
 
         # Buffer: output extent should contain input extent
         if "buffer" in cmd_name and input_artifact and input_artifact.bbox and output_bbox:
             try:
                 out_bbox = list(output_bbox) if not isinstance(output_bbox, (list, tuple)) else output_bbox
-                if len(out_bbox) == 4:
+                if len(out_bbox) != 4:
+                    issues.append(f"Buffer output bbox has unexpected length {len(out_bbox)}: {out_bbox}")
+                else:
                     from shapely.geometry import box
                     out_extent = box(*out_bbox)
                     in_extent = box(*input_artifact.bbox)
                     if not out_extent.contains(in_extent):
                         issues.append("Buffer output extent does not contain input extent")
-            except Exception:
-                pass
+            except Exception as exc:
+                issues.append(f"Could not verify buffer extent containment ({exc})")
 
         if issues:
             return {"check": "output_vs_intent", "passed": False, "message": "; ".join(issues)}

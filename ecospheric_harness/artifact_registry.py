@@ -447,6 +447,11 @@ class ArtifactRegistry:
             rec.file_size_bytes for rec in self._artifacts.values() if not rec.evicted
         )
 
+    @property
+    def disk_limit_bytes(self) -> int:
+        """Disk usage limit in bytes (public accessor)."""
+        return self._disk_limit
+
     # -- Helpers -----------------------------------------------------------
 
     def _safe_file_size(self, path: Path) -> int:

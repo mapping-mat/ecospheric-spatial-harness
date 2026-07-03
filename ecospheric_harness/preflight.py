@@ -71,47 +71,53 @@ class PreflightChecker:
         The caller scans for the first BLOCK resolution; MODEL_DISCRETION
         results are collected as non‑fatal warnings.
 
-        Checks are ordered by risk: CRS agreement and geometry validity
-        are cheap early signals, disk and SSRF are safety gates, and
-        unit‑awareness / resolution sanity are advisory.
+        Ordering: SSRF and disk checks run first (cheap, safety-critical),
+        then spatial checks that may do file I/O, then memory budget.
         """
         command: CommandDescriptor = resolved.command
         results: list[PreflightResult] = []
 
-        # 1. CRS agreement (binary ops — two inputs in different CRS)
-        if self._is_binary_op(command):
-            results.append(self._check_crs_agreement(command, input_artifact, params))
+        # 1. SSRF (string-prefix check — cheapest, security-critical)
+        results.append(self.check_ssrf(params))
 
-        # 2. Extent intersection (binary ops — non‑overlapping inputs)
-        if self._is_binary_op(command):
-            results.append(self._check_extent_intersection(command, input_artifact, params))
-
-        # 3. Unit awareness (distance ops on geographic CRS)
-        results.append(self._check_unit_awareness(command, input_artifact))
-
-        # 4. Extent containment (requested bounds exceed input)
-        results.append(self._check_extent_containment(command, input_artifact, params))
-
-        # 5. CRS validity (target/output CRS parseable)
-        results.append(self._check_crs_validity(command, params))
-
-        # 6. Planar CRS requirement
-        results.append(self._check_planar_crs(command, input_artifact))
-
-        # 7. Resolution sanity (within 3 orders of magnitude)
-        results.append(self._check_resolution_sanity(command, input_artifact, params))
-
-        # 8. Geometry validity (vector input corrupt geometries)
-        results.append(self._check_geometry_validity(command, input_artifact))
-
-        # 9. Disk space
+        # 2. Disk space (arithmetic on existing accounting)
         results.append(self.check_disk(input_artifact=input_artifact))
 
-        # 10. Memory budget
-        results.append(self._check_memory_budget(command, input_artifact, params))
+        # 3. CRS agreement (binary ops — two inputs in different CRS)
+        # Resolve secondary input once, share between CRS + extent checks.
+        secondary_meta: dict[str, Any] | None = None
+        secondary_error: str | None = None
+        is_binary = self._is_binary_op(command)
+        if is_binary:
+            secondary_meta, secondary_error = self._resolve_secondary_input(params)
 
-        # 11. SSRF
-        results.append(self.check_ssrf(params))
+        if is_binary:
+            results.append(self._check_crs_agreement(command, input_artifact, params, secondary_meta, secondary_error))
+
+        # 4. Extent intersection (binary ops — non‑overlapping inputs)
+        if is_binary:
+            results.append(self._check_extent_intersection(command, input_artifact, params, secondary_meta, secondary_error))
+
+        # 5. Unit awareness (distance ops on geographic CRS)
+        results.append(self._check_unit_awareness(command, input_artifact))
+
+        # 6. Extent containment (requested bounds exceed input)
+        results.append(self._check_extent_containment(command, input_artifact, params))
+
+        # 7. CRS validity (target/output CRS parseable)
+        results.append(self._check_crs_validity(command, params))
+
+        # 8. Planar CRS requirement
+        results.append(self._check_planar_crs(command, input_artifact))
+
+        # 9. Resolution sanity (within 3 orders of magnitude)
+        results.append(self._check_resolution_sanity(command, input_artifact, params))
+
+        # 10. Geometry validity (vector input corrupt geometries)
+        results.append(self._check_geometry_validity(command, input_artifact))
+
+        # 11. Memory budget
+        results.append(self._check_memory_budget(command, input_artifact, params))
 
         return results
 
@@ -194,9 +200,9 @@ class PreflightChecker:
             estimate = estimated_bytes
 
         projected = self._registry.bytes_used + estimate
-        if projected >= self._registry._disk_limit:
+        if projected >= self._registry.disk_limit_bytes:
             current_mb = self._registry.bytes_used / (1024 * 1024)
-            limit_mb = self._registry._disk_limit / (1024 * 1024)
+            limit_mb = self._registry.disk_limit_bytes / (1024 * 1024)
             return PreflightResult(
                 check="disk",
                 resolution=Resolution.BLOCK,
@@ -238,7 +244,7 @@ class PreflightChecker:
 
     def check_disk_available(self, estimated_bytes: int = 0) -> bool:
         """Check if estimated_bytes fit within the disk limit."""
-        return self._registry.bytes_used + estimated_bytes < self._registry._disk_limit
+        return self._registry.bytes_used + estimated_bytes < self._registry.disk_limit_bytes
 
     def _check_memory_budget(
         self,
@@ -246,9 +252,16 @@ class PreflightChecker:
         input_artifact: Artifact | ArtifactRecord | None,
         params: dict[str, Any],
     ) -> PreflightResult:
-        """Check estimated peak RSS against memory limit."""
+        """Check estimated peak RSS against memory limit.
+
+        Note: When input_artifact is None (e.g. first operation producing
+        output from a search), there is no input size to estimate from.
+        The memory check is skipped (PASS) — RLIMIT_AS is the backstop
+        for these cases. This is a known gap; Phase 4 may add output-size
+        estimation for search/fetch operations.
+        """
         if self._memory_limit_mb is None or input_artifact is None:
-            return PreflightResult(check="memory_budget")  # PASS — no limit set
+            return PreflightResult(check="memory_budget")  # PASS — no limit set or no input to estimate from
 
         from ecospheric_harness.command_profile import get_profile, estimate_rss_bytes
 
@@ -309,22 +322,30 @@ class PreflightChecker:
         command: CommandDescriptor,
         input_artifact: Artifact | ArtifactRecord | None,
         params: dict[str, Any],
+        secondary_meta: dict[str, Any] | None = None,
+        secondary_error: str | None = None,
     ) -> PreflightResult:
-        """For binary operations, verify primary and secondary inputs share a CRS."""
-        secondary, sec_error = self._resolve_secondary_input(params)
-        if sec_error is not None:
+        """For binary operations, verify primary and secondary inputs share a CRS.
+
+        When secondary_meta/secondary_error are not provided, resolves the
+        secondary input from params (backward-compatible with direct callers).
+        """
+        # If secondary wasn't pre-resolved, resolve it now (backward compat).
+        if secondary_meta is None and secondary_error is None:
+            secondary_meta, secondary_error = self._resolve_secondary_input(params)
+        if secondary_error is not None:
             # Could not read secondary — warn but don't block.
             return PreflightResult(
                 check="crs_agreement",
                 resolution=Resolution.MODEL_DISCRETION,
-                message=sec_error,
+                message=secondary_error,
             )
 
-        if secondary is None:
+        if secondary_meta is None:
             return PreflightResult(check="crs_agreement")
 
         primary_crs = input_artifact.crs if input_artifact is not None else None
-        secondary_crs = secondary.get("crs")
+        secondary_crs = secondary_meta.get("crs")
 
         if primary_crs is None and secondary_crs is None:
             return PreflightResult(check="crs_agreement")
@@ -355,14 +376,33 @@ class PreflightChecker:
         command: CommandDescriptor,
         input_artifact: Artifact | ArtifactRecord | None,
         params: dict[str, Any],
+        secondary_meta: dict[str, Any] | None = None,
+        secondary_error: str | None = None,
     ) -> PreflightResult:
-        """For binary operations, verify primary and secondary extents overlap."""
-        secondary, _sec_error = self._resolve_secondary_input(params)
-        if secondary is None:
+        """For binary operations, verify primary and secondary extents overlap.
+
+        When secondary_meta/secondary_error are not provided, resolves the
+        secondary input from params (backward-compatible with direct callers).
+        """
+        # If secondary wasn't pre-resolved, resolve it now (backward compat).
+        if secondary_meta is None and secondary_error is None:
+            secondary_meta, secondary_error = self._resolve_secondary_input(params)
+
+        # Surface secondary-read errors as MODEL_DISCRETION warnings.
+        # (check_crs_agreement may have already surfaced this, but if
+        # check ordering changes or that check is skipped, we still warn.)
+        if secondary_error is not None:
+            return PreflightResult(
+                check="extent_intersection",
+                resolution=Resolution.MODEL_DISCRETION,
+                message=secondary_error,
+            )
+
+        if secondary_meta is None:
             return PreflightResult(check="extent_intersection")
 
         primary_bbox = input_artifact.bbox if input_artifact is not None else None
-        secondary_bbox: list[float] | None = secondary.get("bbox")  # type: ignore[assignment]
+        secondary_bbox: list[float] | None = secondary_meta.get("bbox")  # type: ignore[assignment]
 
         if primary_bbox is None or secondary_bbox is None:
             return PreflightResult(check="extent_intersection")
@@ -567,6 +607,9 @@ class PreflightChecker:
             return PreflightResult(check="resolution_sanity")
 
         # Convert degrees → metres for geographic CRS.
+        # NOTE: 111320 m/degree is a coarse approximation (actual value
+        # varies ±0.3% by latitude). Fine for a "within 3 orders of
+        # magnitude" sanity check — not for precise measurement.
         param_m = param_resolution
         input_m = input_res
         if input_artifact.crs is not None:

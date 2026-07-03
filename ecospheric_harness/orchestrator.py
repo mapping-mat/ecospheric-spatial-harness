@@ -372,17 +372,7 @@ class Orchestrator:
         # d. Validate.
         validation = self._validator.validate(resolved)
         if not validation.ok:
-            self._steps.append(StepRecord(
-                step_number=len(self._steps) + 1,
-                tool=resolved.tool.name,
-                command=resolved.command.name,
-                tool_ref=resolved.tool,
-                command_ref=resolved.command,
-                intent=intent,
-                params=resolved.params,
-                status="rejected",
-                envelope=None,
-            ))
+            self._append_rejected_step(resolved, intent)
             return None, self._make_error_turn("; ".join(validation.errors), intent)
 
         # e. Preflight — run all checks via pipeline
@@ -412,35 +402,13 @@ class Orchestrator:
             else:
                 continue
 
-            if resolution == Resolution.BLOCK:
-                self._steps.append(StepRecord(
-                    step_number=len(self._steps) + 1,
-                    tool=resolved.tool.name,
-                    command=resolved.command.name,
-                    tool_ref=resolved.tool,
-                    command_ref=resolved.command,
-                    intent=intent,
-                    params=resolved.params,
-                    status="rejected",
-                    envelope=None,
-                ))
+            if resolution in (Resolution.BLOCK, Resolution.AUTO_FIX, Resolution.ASK_USER):
+                # BLOCK, AUTO_FIX, and ASK_USER all stop execution in Phase 2.
+                # (AUTO_FIX and ASK_USER will be handled differently in Phase 3+.)
+                self._append_rejected_step(resolved, intent)
                 return None, self._make_error_turn(message, intent)
             elif resolution == Resolution.MODEL_DISCRETION:
                 warnings.append({"check": check, "message": message})
-            # AUTO_FIX and ASK_USER treated as BLOCK in Phase 2
-            elif resolution in (Resolution.AUTO_FIX, Resolution.ASK_USER):
-                self._steps.append(StepRecord(
-                    step_number=len(self._steps) + 1,
-                    tool=resolved.tool.name,
-                    command=resolved.command.name,
-                    tool_ref=resolved.tool,
-                    command_ref=resolved.command,
-                    intent=intent,
-                    params=resolved.params,
-                    status="rejected",
-                    envelope=None,
-                ))
-                return None, self._make_error_turn(message, intent)
 
         # Store warnings for turn-state (consumed by _build_turn_state).
         self._pending_warnings = warnings
@@ -575,6 +543,22 @@ class Orchestrator:
         ))
         self._failed_redo_count = 0
         return None, None
+
+    def _append_rejected_step(
+        self, resolved: ResolvedCall, intent: str,
+    ) -> None:
+        """Append a 'rejected' StepRecord for a failed validation/preflight check."""
+        self._steps.append(StepRecord(
+            step_number=len(self._steps) + 1,
+            tool=resolved.tool.name,
+            command=resolved.command.name,
+            tool_ref=resolved.tool,
+            command_ref=resolved.command,
+            intent=intent,
+            params=resolved.params,
+            status="rejected",
+            envelope=None,
+        ))
 
     def _make_error_turn(self, error: str, intent: str) -> dict[str, Any]:
         """Build a turn state with an error for the model to retry."""
