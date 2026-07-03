@@ -27,6 +27,7 @@ from ecospheric_harness.result import PipelineResult, StepRecord
 # (submodules import from each other, not from __init__).
 # Harness lives in __main__.py alongside CLI; safe because __main__ guards with if __name__ == "__main__"
 from ecospheric_harness.__main__ import Harness
+from ecospheric_harness.session_manager import SessionManager
 
 __all__ = [
     "Harness",
@@ -38,6 +39,7 @@ __all__ = [
     "Orchestrator",
     "PipelineResult",
     "ProviderError",
+    "SessionManager",
     "StepRecord",
     "StreamChunk",
     "TokenUsage",
