@@ -71,6 +71,7 @@ class Harness:
         provider_type: str = "openrouter",
         ollama_host: str = "http://localhost:11434",
         session_ttl_days: float = 7.0,
+        default_raster_format: str = "cog",
     ) -> None:
         tool_names = tools if tools is not None else ["edd", "ese"]
 
@@ -91,6 +92,7 @@ class Harness:
             memory_limit_mb=memory_limit_mb,
             provider=provider_type,
             ollama_host=ollama_host,
+            default_raster_format=default_raster_format,
         )
 
         # Create WorkspaceManager
@@ -191,6 +193,7 @@ class Harness:
             workspace=self._workspace,
             provider=self._provider,
             output_validator=self._output_validator,
+            default_raster_format=default_raster_format,
         )
 
     # -- public methods ----------------------------------------------------
@@ -340,6 +343,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Memory budget limit in MB (default: no limit)",
     )
     parser.add_argument(
+        "--default-raster-format",
+        default="cog",
+        help="Default format for raster outputs (default: cog)",
+    )
+    parser.add_argument(
         "--eval",
         action="store_true",
         help="Run evaluation fixtures and print results",
@@ -479,6 +487,7 @@ def main(argv: list[str] | None = None) -> int:
             provider_type=args.provider,
             ollama_host=args.ollama_host,
             session_ttl_days=args.session_ttl_days,
+            default_raster_format=args.default_raster_format,
         )
         _list_tools_json(harness)
         return 0
@@ -501,6 +510,7 @@ def main(argv: list[str] | None = None) -> int:
             provider_type=args.provider,
             ollama_host=args.ollama_host,
             session_ttl_days=args.session_ttl_days,
+            default_raster_format=args.default_raster_format,
         )
         _list_intents_json(harness)
         return 0
@@ -526,6 +536,7 @@ def main(argv: list[str] | None = None) -> int:
             provider_type=args.provider,
             ollama_host=args.ollama_host,
             session_ttl_days=args.session_ttl_days,
+            default_raster_format=args.default_raster_format,
         )
         _dry_run(harness, args.prompt)
         return 0
@@ -620,6 +631,7 @@ def main(argv: list[str] | None = None) -> int:
         provider_type=args.provider,
         ollama_host=args.ollama_host,
         session_ttl_days=args.session_ttl_days,
+        default_raster_format=args.default_raster_format,
     )
     result = harness.run(args.prompt)
     print(result.summary())

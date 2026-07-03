@@ -24,6 +24,9 @@ class HarnessConfig:
     session_id: str | None = None
     session_ttl_days: float = 7.0
 
+    # Raster defaults
+    default_raster_format: str = "cog"
+
     # Security
     subprocess_max_output_mb: int = 100
     rlimit_as_mb: int | None = None  # None = no RLIMIT_AS
@@ -92,6 +95,8 @@ class HarnessConfig:
             cfg.provider = v
         if v := os.environ.get("HARNESS_OLLAMA_HOST"):
             cfg.ollama_host = v
+        if v := os.environ.get("HARNESS_DEFAULT_RASTER_FORMAT"):
+            cfg.default_raster_format = v
 
         return cfg
 

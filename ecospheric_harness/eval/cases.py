@@ -319,4 +319,79 @@ FIXTURES: list[EvalFixture] = [
         ),
         skip_live=True,
     ),
+    # -----------------------------------------------------------------------
+    # Phase 2 — Preflight + Output Validation (5)
+    # -----------------------------------------------------------------------
+    EvalFixture(
+        name="phase2_crs_mismatch_blocks",
+        prompt="Search OSM for buildings near Chico, then clip the buildings using a mask in a different CRS",
+        tags=["phase2", "preflight", "live"],
+        expected_intents=[
+            IntentExpectation(intent="search_osm", tool="edd", status="success"),
+            IntentExpectation(intent="clip", status="rejected"),  # BLOCK on CRS mismatch
+        ],
+        expected_error=ErrorExpectation(
+            error_type="preflight",
+            error_contains="CRS",
+        ),
+        skip_live=True,
+    ),
+    EvalFixture(
+        name="phase2_geographic_buffer_blocks",
+        prompt="Search OSM for buildings near Chico, then buffer by 500 meters",
+        tags=["phase2", "preflight", "live"],
+        expected_intents=[
+            IntentExpectation(intent="search_osm", tool="edd", status="success"),
+            IntentExpectation(intent="buffer", status="rejected"),  # AUTO_FIX/BLOCK
+        ],
+        expected_error=ErrorExpectation(
+            error_type="preflight",
+            error_contains="reproject",
+        ),
+        skip_live=True,
+    ),
+    EvalFixture(
+        name="phase2_invalid_crs_blocks",
+        prompt="Search OSM for buildings near Chico, then reproject to EPSG:INVALID",
+        tags=["phase2", "preflight", "live"],
+        expected_intents=[
+            IntentExpectation(intent="search_osm", tool="edd", status="success"),
+            IntentExpectation(intent="reproject", status="rejected"),
+        ],
+        expected_error=ErrorExpectation(
+            error_type="preflight",
+            error_contains="CRS",
+        ),
+        skip_live=True,
+    ),
+    EvalFixture(
+        name="phase2_valid_pipeline",
+        prompt="Search OSM for buildings near Chico, reproject to EPSG:3857, then buffer by 500m",
+        tags=["phase2", "live"],
+        expected_intents=[
+            IntentExpectation(intent="search_osm", tool="edd", status="success"),
+            IntentExpectation(intent="reproject", status="success"),
+            IntentExpectation(intent="buffer", status="success"),
+            IntentExpectation(intent="complete"),
+        ],
+        expected_artifact=ArtifactExpectation(
+            data_type="vector",
+            crs_type="projected",
+        ),
+        skip_live=True,
+    ),
+    EvalFixture(
+        name="phase2_output_validation_failure",
+        prompt="Search OSM for buildings near Chico, then reproject — output produces 1x1 raster",
+        tags=["phase2", "validation", "live"],
+        expected_intents=[
+            IntentExpectation(intent="search_osm", tool="edd", status="success"),
+            IntentExpectation(intent="reproject", status="validation_failed"),
+        ],
+        expected_error=ErrorExpectation(
+            error_type="validation",
+            error_contains="1x1",
+        ),
+        skip_live=True,
+    ),
 ]

@@ -131,6 +131,7 @@ class Orchestrator:
         workspace: WorkspaceManager,
         provider: ModelProvider | None = None,
         output_validator: OutputValidator | None = None,
+        default_raster_format: str = "cog",
     ) -> None:
         self._config = config
         self._tool_registry = registry
@@ -144,6 +145,7 @@ class Orchestrator:
         self._workspace = workspace
         self._provider = provider
         self._output_validator = output_validator or OutputValidator()
+        self._default_raster_format = default_raster_format
 
         self._steps: list[StepRecord] = []
         self._failed_redo_count: int = 0
@@ -442,6 +444,20 @@ class Orchestrator:
 
         # Store warnings for turn-state (consumed by _build_turn_state).
         self._pending_warnings = warnings
+
+        # Inject default raster format if not specified
+        if self._default_raster_format and not any(
+            k in resolved.params for k in ("format", "output_format", "--format", "--output-format")
+        ):
+            # Check if this command produces raster output
+            cmd_name = resolved.command.name.lower()
+            raster_producing = any(x in cmd_name for x in (
+                "reproject", "warp", "clip", "buffer", "slope", "aspect",
+                "hillshade", "contour", "rasterize", "reclassify", "calc",
+                "mosaic", "tile",
+            ))
+            if raster_producing:
+                resolved.params["format"] = self._default_raster_format
 
         # g. Execute.
         t0 = time.monotonic()

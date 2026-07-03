@@ -26,6 +26,9 @@ _VALID_TAGS = frozenset({
     "security",
     "raster",
     "live",
+    "phase2",
+    "preflight",
+    "validation",
 })
 
 
@@ -508,9 +511,9 @@ class TestCasesModule:
                     f"Unknown tag '{tag}' in fixture '{fixture.name}'"
                 )
 
-    def test_cases_count_is_25(self) -> None:
-        """Exactly 25 fixture cases are defined."""
-        assert len(FIXTURES) == 25
+    def test_cases_count_is_30(self) -> None:
+        """Exactly 30 fixture cases are defined (25 original + 5 Phase 2)."""
+        assert len(FIXTURES) == 30
 
     def test_cases_all_have_prompt(self) -> None:
         """Every fixture has a non-empty prompt."""
