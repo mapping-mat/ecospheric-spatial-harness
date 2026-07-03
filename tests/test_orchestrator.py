@@ -1561,3 +1561,78 @@ class TestLastResultContainsRealStepAndIntent:
         assert len(error_states) >= 1
         assert error_states[0]["last_result"]["step"] == 1
         assert error_states[0]["last_result"]["intent"] == "clip"
+
+
+# ---------------------------------------------------------------------------
+# Artifact-input resolution tests
+# ---------------------------------------------------------------------------
+
+
+class TestInputArtifactIdFromInput:
+    """Test that `input` param matching an artifact ID is promoted to
+    `input_artifact_id` and resolved correctly."""
+
+    def _register_artifact(
+        self, artifact_registry: ArtifactRegistry, tmp_path: Path,
+        artifact_id: str = "search_osm_001",
+    ) -> ArtifactRecord:
+        """Helper: register a fake artifact and return it."""
+        fpath = tmp_path / f"{artifact_id}.tif"
+        fpath.write_bytes(b"fake-data")
+        return artifact_registry.register(
+            path=fpath,
+            format="geotiff",
+            data_type="raster",
+            intent="search_osm",
+        )
+
+    def test_input_param_as_artifact_id(self, tmp_path: Path) -> None:
+        """passing input="search_osm_001" resolves to the artifact's file path."""
+        orch, artifact_registry, resolver, _ = _make_mock_orchestrator(tmp_path)
+        record = self._register_artifact(artifact_registry, tmp_path)
+
+        # Ensure resolve_input actually finds it
+        assert artifact_registry.resolve_input("search_osm_001") is record
+
+        # Call _handle_operation with input=<artifact_id>
+        params = {"input": "search_osm_001"}
+        result, error_turn = orch._handle_operation("clip", params)
+
+        # Success path — no error turn
+        assert error_turn is None
+
+        # The resolver should have been called with input_artifact=record
+        # (not params containing input="search_osm_001")
+        call_args = resolver.resolve.call_args
+        resolved_artifact = call_args[0][2]  # third positional arg
+        assert resolved_artifact is record
+        # `input` should NOT be in resolved params
+        assert "input" not in call_args[0][1]
+
+    def test_input_param_as_file_path(self, tmp_path: Path) -> None:
+        """passing input="/some/file/path" is left as-is in params."""
+        orch, artifact_registry, resolver, _ = _make_mock_orchestrator(tmp_path)
+
+        params = {"input": "/some/file/path.tif"}
+        result, error_turn = orch._handle_operation("clip", params)
+
+        assert error_turn is None
+        call_args = resolver.resolve.call_args
+        # input should still be in params (not promoted)
+        assert call_args[0][1].get("input") == "/some/file/path.tif"
+        # No input_artifact resolved (no artifact matches the path)
+        resolved_artifact = call_args[0][2]
+        assert resolved_artifact is None
+
+    def test_input_artifact_id_backward_compat(self, tmp_path: Path) -> None:
+        """passing input_artifact_id="search_osm_001" still works."""
+        orch, artifact_registry, resolver, _ = _make_mock_orchestrator(tmp_path)
+        record = self._register_artifact(artifact_registry, tmp_path)
+
+        params = {"input_artifact_id": "search_osm_001"}
+        result, error_turn = orch._handle_operation("clip", params)
+
+        assert error_turn is None
+        call_args = resolver.resolve.call_args
+        resolved_artifact = call_args[0][2]
+        assert resolved_artifact is record

@@ -307,11 +307,21 @@ class Orchestrator:
         """
         # a. Resolve input artifact
         input_artifact: ArtifactRecord | None = None
-        input_artifact_id = params.pop("input_artifact_id", None)
 
         # Normalize param keys (strip -- prefixes, hyphens → underscores)
         # so downstream validation/execution sees canonical names.
         params = normalize_params(params)
+
+        # If the model passed `input` as an artifact ID, promote it to
+        # `input_artifact_id` so the existing resolution handles it.
+        input_val = params.get("input")
+        if input_val and isinstance(input_val, str):
+            artifact = self._artifact_registry.resolve_input(input_val)
+            if artifact is not None:
+                params.pop("input")
+                params["input_artifact_id"] = input_val
+
+        input_artifact_id = params.pop("input_artifact_id", None)
 
         if input_artifact_id:
             input_artifact = self._artifact_registry.resolve_input(input_artifact_id)
