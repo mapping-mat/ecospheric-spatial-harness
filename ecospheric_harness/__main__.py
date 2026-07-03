@@ -360,6 +360,22 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Default format for raster outputs (default: cog)",
     )
     parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Launch a FastAPI/uvicorn web server instead of CLI prompt loop",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port for the web server (default: 8000)",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host address for the web server (default: 127.0.0.1)",
+    )
+    parser.add_argument(
         "--eval",
         action="store_true",
         help="Run evaluation fixtures and print results",
@@ -611,6 +627,35 @@ def main(argv: list[str] | None = None) -> int:
         print()
         print(f"Results: {total_pass}/{len(results)} passed")
         return 0 if total_pass == len(results) else 1
+
+    # --web — launch FastAPI/uvicorn
+    if args.web:
+        import uvicorn
+
+        from ecospheric_harness.web.app import create_app
+
+        app = create_app(
+            harness_kwargs={
+                "tools": ["edd", "ese"],
+                "model": args.model,
+                "subprocess_timeout": args.subprocess_timeout,
+                "disk_limit_gb": args.disk_limit_gb,
+                "search_cap": args.search_cap,
+                "max_turns": args.max_turns,
+                "workspace_root": args.workspace,
+                "max_output_mb": args.max_output_mb,
+                "rlimit_as_mb": args.rlimit_as_mb,
+                "rlimit_nproc": args.rlimit_nproc,
+                "gdal_cachemax_mb": args.gdal_cachemax,
+                "memory_limit_mb": args.memory_limit_mb,
+                "provider_type": args.provider,
+                "ollama_host": args.ollama_host,
+                "session_ttl_days": args.session_ttl_days,
+                "default_raster_format": args.default_raster_format,
+            },
+        )
+        uvicorn.run(app, host=args.host, port=args.port)
+        return 0
 
     # Normal run requires a prompt
     if args.prompt is None:
