@@ -1,6 +1,6 @@
 # Ecospheric Spatial Harness — Development Tracker
 
-## Current Phase: 1.5 — Provider Abstraction (NEXT)
+## Current Phase: 2 — Spatial Validation (NEXT)
 
 ## Phase History
 
@@ -13,7 +13,7 @@
 | 0.5 — Validator coercion fix | ✅ | 2026-07-02 | 274 | `315e45a` |
 | 1a — Eval Harness | ✅ | 2026-07-02 | 311 | `fad7cf8` |
 | 1b — First Real NL Query | ✅ | 2026-07-02 | 345 | `f1f0d96`→`5dc3bf4` |
-| 1.5 — Provider Abstraction | ⬜ NEXT | — | — | — |
+| 1.5 — Provider Abstraction | ✅ | 2026-07-03 | 408 | `e59bab3` |
 | 2 — Spatial Validation | ⬜ | — | — | — |
 | 3 — Web UI | ⬜ | — | — | — |
 | 4 — Hardening | ⬜ | — | — | — |
