@@ -426,18 +426,19 @@ class Orchestrator:
         # Store warnings for turn-state (consumed by _build_turn_state).
         self._pending_warnings = warnings
 
-        # Inject default raster format if not specified
+        # Inject default raster format if not specified and command produces raster output
         if self._default_raster_format and not any(
             k in resolved.params for k in ("format", "output_format", "--format", "--output-format")
         ):
-            # Check if this command produces raster output
-            cmd_name = resolved.command.name.lower()
-            raster_producing = any(x in cmd_name for x in (
-                "reproject", "warp", "clip", "buffer", "slope", "aspect",
-                "hillshade", "contour", "rasterize", "reclassify", "calc",
-                "mosaic", "tile",
-            ))
-            if raster_producing:
+            # Only inject for raster-producing commands.
+            # Check data_type first (from ESE --describe), then fall back
+            # to category for commands where data_type is "any" or unset.
+            cmd = resolved.command
+            is_raster = (
+                getattr(cmd, "data_type", None) == "raster"
+                or getattr(cmd, "category", None) == "raster"
+            )
+            if is_raster:
                 resolved.params["format"] = self._default_raster_format
 
         # g. Execute.

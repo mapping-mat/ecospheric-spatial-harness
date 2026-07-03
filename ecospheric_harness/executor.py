@@ -237,11 +237,18 @@ class ToolExecutor:
         try:
             envelope = json.loads(clean_stdout)
         except json.JSONDecodeError:
+            # Include stderr and a snippet of stdout so the model can
+            # diagnose the actual failure (e.g. wrong args, missing dep).
+            stdout_snippet = clean_stdout[:500] if clean_stdout else "(empty)"
+            stderr_snippet = stderr[:500] if stderr else ""
+            detail = f"exit_code={proc.returncode}, stdout={stdout_snippet}"
+            if stderr_snippet:
+                detail += f", stderr={stderr_snippet}"
             envelope = {
                 "status": "error",
                 "error": {
                     "type": "internal_error",
-                    "message": "Tool produced invalid JSON output",
+                    "message": f"Tool produced invalid JSON output ({detail})",
                     "exit_code": proc.returncode,
                     "retryable": False,
                 },
