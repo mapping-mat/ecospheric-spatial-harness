@@ -134,3 +134,41 @@ def test_validation_result_dataclass() -> None:
     err_result = ValidationResult(ok=False, errors=["boom"])
     assert err_result.ok is False
     assert err_result.errors == ["boom"]
+
+
+# ---------------------------------------------------------------------------
+# Dashed-key normalization (params.py integration)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_accepts_dashed_param_keys() -> None:
+    """Params with '--'-prefixed keys must be accepted after normalization.
+
+    The validator (via _coerce_params) should strip leading dashes and
+    convert hyphens to underscores before matching against the schema.
+    """
+    cmd = _cmd([
+        ParameterDescriptor("--source", "data source", "string", required=True),
+        ParameterDescriptor("--bbox", "bounding box", "string", required=True),
+    ])
+    dashed_params = {"--source": "@osm", "--bbox": "-121.9,39.7,-121.8,39.8"}
+    result = _validator.validate(_resolve(cmd, dashed_params))
+    assert result.ok is True, f"Expected OK but got errors: {result.errors}"
+
+
+def test_coerce_params_returns_normalized_keys() -> None:
+    """_coerce_params must return keys WITHOUT the '--' prefix."""
+    from ecospheric_harness.validator import _coerce_params
+
+    cmd = _cmd([
+        ParameterDescriptor("--source", "data source", "string", required=True),
+        ParameterDescriptor("--output-crs", "target CRS", "string", required=False),
+    ])
+    raw = {"--source": "@osm", "--output-crs": "EPSG:4326"}
+    coerced = _coerce_params(raw, cmd)
+    assert "--source" not in coerced, "Raw dashed key should be replaced"
+    assert "--output-crs" not in coerced, "Raw dashed key should be replaced"
+    assert "source" in coerced
+    assert "output_crs" in coerced
+    assert coerced["source"] == "@osm"
+    assert coerced["output_crs"] == "EPSG:4326"

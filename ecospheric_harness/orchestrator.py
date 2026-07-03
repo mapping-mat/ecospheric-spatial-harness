@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 
 from ecospheric_harness.artifact_registry import ArtifactRecord, ArtifactRegistry
+from ecospheric_harness.params import normalize_params
 from ecospheric_harness.config import HarnessConfig
 from ecospheric_harness.corrections import CorrectionHandler
 from ecospheric_harness.executor import ToolExecutor
@@ -307,7 +308,11 @@ class Orchestrator:
         # a. Resolve input artifact
         input_artifact: ArtifactRecord | None = None
         input_artifact_id = params.pop("input_artifact_id", None)
-        
+
+        # Normalize param keys (strip -- prefixes, hyphens → underscores)
+        # so downstream validation/execution sees canonical names.
+        params = normalize_params(params)
+
         if input_artifact_id:
             input_artifact = self._artifact_registry.resolve_input(input_artifact_id)
             if input_artifact is None:

@@ -112,7 +112,7 @@ def _coerce_params(
             and desc.type == "string"
             and isinstance(value, list)
         ):
-            coerced[key] = ",".join(str(v) for v in value)
+            coerced[norm_key] = ",".join(str(v) for v in value)
         else:
-            coerced[key] = value
+            coerced[norm_key] = value
     return coerced

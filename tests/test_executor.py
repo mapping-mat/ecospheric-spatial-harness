@@ -354,14 +354,29 @@ class TestInputRouting:
         didx = args.index("--d8-pntr")
         assert args[didx + 1] == str(artifact.path)
 
-    def test_no_input_no_target_raises(self, tmp_path: Path) -> None:
-        """Rule 4: no input param, no _input_target → ValueError."""
+    def test_no_input_no_target_positional_fallback(self, tmp_path: Path) -> None:
+        """Rule 4: no input param, no _input_target → positional arg fallback."""
         cmd = _make_command("process", [_make_param("--threshold", "integer")])
         artifact = _make_artifact(tmp_path / "in.tif")
 
         executor = ToolExecutor()
-        with pytest.raises(ValueError, match="no standard input parameter"):
-            executor._route_input(artifact, cmd, {})
+        result = executor._route_input(artifact, cmd, {})
+        assert result == [str(artifact.path)]
+
+    def test_convert_style_command_positional_fallback(self, tmp_path: Path) -> None:
+        """Regression: commands like `convert` with no declared input param
+        should fall back to positional arg (simulates ESE convert command)."""
+        # Simulate a CommandDescriptor like ESE's `convert` — it takes
+        # INPUT_PATH as a positional arg but doesn't declare it in parameters.
+        cmd = _make_command("convert", [
+            _make_param("--from", "string"),
+            _make_param("--to", "string"),
+        ])
+        artifact = _make_artifact(tmp_path / "data.geojson")
+
+        executor = ToolExecutor()
+        result = executor._route_input(artifact, cmd, {})
+        assert result == [str(artifact.path)]
 
     def test_input_target_not_found_raises(self, tmp_path: Path) -> None:
         """_input_target references nonexistent param → ValueError."""

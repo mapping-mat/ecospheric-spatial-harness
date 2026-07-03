@@ -298,18 +298,25 @@ class ToolExecutor:
                 f"'{command.name}' parameters"
             )
 
-        # Rule 4: no way to route
-        raise ValueError(
-            f"Command '{command.name}' has no standard input parameter. "
-            f"Specify which parameter receives the artifact via _input_target."
-        )
+        # Rule 4: fallback — append as positional argument
+        # Many ESE commands accept INPUT_PATH as a positional arg that isn't
+        # declared in CommandDescriptor.parameters (e.g. `convert`).
+        # Appending the path as a positional is safe: if the command doesn't
+        # accept it, the CLI will error with a clear message.
+        return [path]
 
     def _serialize_params(
         self,
         params: dict[str, Any],
         command: CommandDescriptor,
     ) -> list[str]:
-        """Serialize params using the shared serialize_params function."""
+        """Serialize params using the shared serialize_params function.
+
+        Note: The canonical normalization point for param keys is
+        ``ecospheric_harness.params.normalize_params``, called by the
+        orchestrator before validation/execution. This method's own
+        ``norm_key`` logic in ``serialize_params`` is defense-in-depth.
+        """
         return serialize_params(params, command)
 
     @staticmethod
