@@ -1,12 +1,14 @@
-# Phase 2 — Spatial Validation + Data-Size Strategy
+# Phase 2 — Spatial Validation + Data-Size Strategy (Revised)
 
-> Scoped 2026-07-03. Builds on ROADMAP.md. Sliced into implementable units.
+> Revised 2026-07-03 after Sonnet 5 review. Addresses: backward-compat hole,
+> binary-op file-path blind spot, memory formula gaps, slice coupling,
+> checks 9-14 underspecification, output-validation orphan cleanup.
 
 ## Current State
 
 - `PreflightChecker` has 3 checks: `check_planar_crs`, `check_disk`, `check_ssrf`
 - `PreflightResult` is a simple dataclass: `ok: bool`, `error: str`
-- Orchestrator calls preflight checks inline in `_handle_operation()`
+- Orchestrator calls preflight checks inline in `_handle_operation()` with 3 duplicated `StepRecord(...)` blocks
 - `ArtifactRecord` has: `crs`, `bbox`, `format`, `data_type`, `envelope` (full ETP envelope)
 - ETP envelopes contain `data.crs`, `data.bbox`, `data.bounds`, `data.extent`, `data.data_type`, `data.format`
 - ESE has 96 commands across raster/vector/pointcloud/hydro/proj
@@ -14,71 +16,11 @@
 
 ## Design Decisions
 
-### PreflightResult upgrade (breaking change — required first)
+### PreflightResult upgrade + pipeline pattern (foundation — must be done together)
 
-Current `PreflightResult` is `{ok, error}`. ROADMAP calls for `{check, resolution, message, diagnostics}`. This is a structural change that ripples through:
-- `intents.py` (PreflightResult dataclass)
-- `preflight.py` (PreflightChecker methods)
-- `orchestrator.py` (how preflight results are consumed)
-- Existing tests that assert on `PreflightResult.ok` / `.error`
+Current `PreflightResult` is `{ok, error}`. ROADMAP calls for `{check, resolution, message, diagnostics}`. This is a **whole-file rewrite of `preflight.py`** — every call site uses `PreflightResult(ok=False, error="...")` which won't exist on the new dataclass. The "small slice" framing was wrong; this is structural.
 
-**Strategy:** New `PreflightResult` with `Resolution` enum. Old checks migrated. Orchestrator gains a `_run_preflight()` method that runs all applicable checks and collects results. BLOCK and ASK_USER stop execution. AUTO_FIX applies the fix and re-runs. MODEL_DISCRETION and PASS continue.
-
-### What metadata is available for preflight?
-
-From `ArtifactRecord`:
-- `crs`: string (e.g. "EPSG:32610") or None
-- `bbox`: `[minx, miny, maxx, maxy]` or None
-- `format`: "geotiff", "geoparquet", etc.
-- `data_type`: "raster", "vector", "pointcloud", "metadata"
-- `envelope`: full ETP envelope dict (has `data.crs`, `data.bbox`, `data.bounds`, `data.extent`, `data.resolution`, `data.width`, `data.height`, `data.bands`, etc.)
-
-For binary ops (two inputs), the second input comes from params (e.g. `--by`, `--mask`, `--overlay`). We need to resolve param values that are file paths to artifact metadata. This is tricky — for now, we'll only run binary-op checks when both inputs are registered artifacts. If the second input is a raw file path, we skip binary checks (can't inspect without executing).
-
-### Memory estimation approach
-
-Per ROADMAP: memory behavior class + multiplier per command, runtime RSS estimate from live input metadata.
-
-- **Behavior class:** `streaming`, `full_load`, `depends`
-- **Multiplier:** default 3×, overridden for known classes
-- **RSS estimate:** `input_dims × dtype × bands × multiplier`
-- Input dims from envelope: `data.width × data.height × data.bands` (raster), or `file_size_bytes` (vector/pointcloud)
-- **Block check:** if estimate > `rlimit_as_mb` (or a new `memory_limit_mb` config), BLOCK
-
-We need a command classification table. ESE has 96 commands — classify by algorithm family:
-- Reproject/warp: `full_load`, 3× (GDAL Warp uses ~2-3× input)
-- Buffer/clip/dissolve (vector): `full_load`, 2× (geopandas loads all)
-- Slope/aspect/hillshade: `streaming`, 1.5× (windowed)
-- Contour: `streaming`, 2×
-- Mesh/rasterize: `full_load`, 3×
-- Point cloud ops: `full_load`, 3× (PDAL loads all)
-- Info/describe: `streaming`, 1×
-- Default: `full_load`, 3× (conservative)
-
-### Output validation approach
-
-After execution, inspect the output artifact:
-- File exists and non-empty
-- Raster: dimensions > 1×1, CRS set, NoData set (if applicable)
-- Vector: feature count > 0, valid geometries, CRS set
-- Output-vs-intent: extent ⊆ expected (from input extent + operation type), CRS == requested
-
-Tools: `rasterio` (already installed via geopandas/gdal), `geopandas`, `shapely`. All already available.
-
----
-
-## Slices
-
-### Slice 2.1 — PreflightResult + Resolution enum upgrade
-
-**Files:**
-- `ecospheric_harness/intents.py` — replace `PreflightResult` dataclass
-- `ecospheric_harness/preflight.py` — migrate all check methods to new return type
-- `ecospheric_harness/orchestrator.py` — update `_handle_operation()` preflight consumption
-- `tests/test_preflight.py` — update existing tests
-- `tests/test_orchestrator.py` — update tests that assert on preflight results
-
-**Changes:**
+**New PreflightResult:**
 
 ```python
 class Resolution(Enum):
@@ -97,132 +39,220 @@ class PreflightResult:
 
     @property
     def ok(self) -> bool:
-        """Backward-compat: True when resolution is PASS or MODEL_DISCRETION."""
+        """True when resolution is PASS or MODEL_DISCRETION."""
         return self.resolution in (Resolution.PASS, Resolution.MODEL_DISCRETION)
 ```
 
-All existing checks return `PreflightResult(check="...", resolution=Resolution.BLOCK, message="...")` on failure, `PreflightResult(check="...", resolution=Resolution.PASS)` on success.
+**Warnings surfacing:** The orchestrator's turn-state gains a `warnings: list[dict]` field. `MODEL_DISCRETION` results are appended to this list with `{check, message, diagnostics}`. This is wired in the foundation slice, not deferred — the gap between 2.1 and 2.2 was the critical issue.
 
-Orchestrator: any `BLOCK` → make_error_turn with message. `ASK_USER` → (for now) treat as BLOCK (Phase 3 will surface in UI). `AUTO_FIX` → (for now) treat as BLOCK with "auto-fix not yet implemented" (Phase 2b will implement). `MODEL_DISCRETION` → pass through.
+**Preflight pipeline pattern:** Replace the inline copy-paste `StepRecord` blocks with:
 
-**Tests:** Update existing preflight tests to use new API. Verify backward-compat `ok` property works.
+```python
+def _run_preflight_checks(
+    self, resolved: ResolvedCall, input_artifact: ArtifactRecord | None,
+    params: dict[str, Any],
+) -> list[PreflightResult]:
+    """Run all applicable preflight checks. Returns results in priority order."""
+    results: list[PreflightResult] = []
+    command = resolved.command
 
-**Estimated:** ~3 files changed, ~2 new test assertions. Small slice.
+    # 1. CRS agreement (binary ops)
+    results.append(self._check_crs_agreement(command, input_artifact, params))
+    # 2. Extent intersection (binary ops)
+    results.append(self._check_extent_intersection(command, input_artifact, params))
+    # 3. Unit awareness (geographic CRS + distance op)
+    results.append(self._check_unit_awareness(command, input_artifact))
+    # 4. Extent containment
+    results.append(self._check_extent_containment(command, input_artifact, params))
+    # 5. CRS validity (target CRS)
+    results.append(self._check_crs_validity(command, params))
+    # 6. Planar CRS (existing, refactored)
+    results.append(self._check_planar_crs(command, input_artifact))
+    # 7. Resolution sanity
+    results.append(self._check_resolution_sanity(command, input_artifact, params))
+    # 8. Geometry validity
+    results.append(self._check_geometry_validity(command, input_artifact))
+    # 9. SSRF (existing, refactored)
+    results.append(self._check_ssrf(params))
+    # 10. Disk (existing, refactored)
+    results.append(self._check_disk(input_artifact=input_artifact))
+
+    return results
+```
+
+Orchestrator's `_handle_operation` calls `_run_preflight_checks()` once, scans results:
+- First `BLOCK` → append one `StepRecord(status="rejected")`, return error turn
+- `MODEL_DISCRETION` results → collect into `warnings` list on the step/turn
+- `PASS` → continue
+
+This eliminates the 3× duplicated `StepRecord` blocks and makes adding checks a one-line append.
+
+**Interaction with existing `check_planar_crs`:** The new `check_unit_awareness` (check #3) and existing `check_planar_crs` (check #6) overlap — both detect geographic CRS. Resolution:
+- `check_unit_awareness`: For distance/buffer ops on geographic CRS → `AUTO_FIX` (suggest reproject). In Phase 2, AUTO_FIX is treated as BLOCK with a "suggested reproject to {CRS}" message.
+- `check_planar_crs`: For any command requiring planar CRS on geographic input → `BLOCK` with "reproject first" message.
+- These run in sequence. If `check_unit_awareness` fires (AUTO_FIX/BLOCK), `check_planar_crs` is redundant but harmless (also BLOCK). The model sees the more specific message first.
+
+### Binary-op file-path header reads
+
+**Problem:** The model frequently passes raw file paths for `--mask`/`--by`/`--overlay` instead of artifact IDs. The scope originally skipped binary-op checks for file-path inputs.
+
+**Fix:** Add `_resolve_secondary_input(params)` that:
+1. Checks if the param value matches a registered artifact ID → use artifact metadata
+2. If it's a file path → do a header-only read:
+   - Raster: `rasterio.open(path)` → `.crs`, `.bounds` (cheap, no data load)
+   - Vector: `fiona.open(path)` or `gpd.read_file(path, rows=1)` → CRS, total_bounds
+   - If file doesn't exist or can't be opened → skip with `MODEL_DISCRETION` warning
+3. Returns `(ArtifactRecord-like metadata | None, warning_message)`
+
+This is a required deliverable in Slice 2.1, not a deferred limitation. It directly addresses the ROADMAP's primary failure mode (CRS mismatch / zero-intersection → 1×1 black box).
+
+### Command profile keying
+
+**Problem:** Command names like `"clip"` exist in both raster and vector namespaces with different memory profiles.
+
+**Fix:** Key the classification table by `(command_name, data_type)` tuple:
+
+```python
+COMMAND_PROFILES: dict[tuple[str, str], CommandProfile] = {
+    ("reproject", "raster"): CommandProfile("full_load", 3.0),
+    ("reproject", "vector"): CommandProfile("full_load", 2.0),
+    ("clip", "raster"): CommandProfile("streaming", 1.5),   # GDAL windowed
+    ("clip", "vector"): CommandProfile("full_load", 2.0),   # geopandas
+    ("buffer", "vector"): CommandProfile("full_load", 2.0),
+    ("slope", "raster"): CommandProfile("streaming", 1.5),
+    # ... etc
+}
+DEFAULT_PROFILE = CommandProfile("full_load", 3.0)
+```
+
+### Memory estimation calibration
+
+**Problem:** `file_size_bytes × multiplier` is a poor proxy for compressed formats (GeoParquet is columnar + compressed; in-memory GeoDataFrame is 3-10× disk size). `dtype` may not be present in all envelopes.
+
+**Fix:**
+- Raster: `width × height × bands × dtype_size × multiplier` — `dtype_size` defaults to 4 bytes (Float32) if `data.dtype` is absent from envelope. Documented assumption.
+- Vector: Use `feature_count × avg_bytes_per_feature × multiplier` where `avg_bytes_per_feature` defaults to 500 bytes (empirical average for polygon geometries). If `feature_count` is absent, fall back to `file_size_bytes × 5` (compression factor estimate for GeoParquet — conservative). Flag as "low-confidence estimate" in diagnostics.
+- Pointcloud: `file_size_bytes × 3` (pointcloud formats are typically uncompressed or lightly compressed).
+- All estimates include a `confidence: "high"|"low"` field in diagnostics based on whether the input metadata was complete.
+- **Calibration note:** These multipliers are initial heuristics. Phase 4 should instrument actual peak RSS per command and calibrate. The preflight check is still valuable as a first-pass guard even with imperfect estimates — RLIMIT_AS is the backstop.
+
+### Output-validation orphan cleanup
+
+**Problem:** If output validation fails post-execution, the file exists on disk but was never registered. The scope didn't wire this into cleanup.
+
+**Fix:** In the orchestrator, after output validation fails:
+1. Step recorded as `validation_failed`
+2. Call `self._workspace.cleanup_unregistered(output_path)` — deletes the orphan file
+3. Error message to model includes: "Output validation failed: {message}. Partial output cleaned up."
+4. This is distinct from Slice 2.5's cancellation cleanup (which handles mid-execution interruption), but both call the same `WorkspaceManager.cleanup_unregistered()` method.
 
 ---
 
-### Slice 2.2 — Spatial preflight checks (the 14 checks)
+## Slices (Revised)
+
+### Slice 2.1 — Preflight Foundation + Spatial Checks 1-8
+
+**Merged from old 2.1 + 2.2.** This is the structural foundation. No parallelization — single coherent change.
 
 **Files:**
-- `ecospheric_harness/preflight.py` — add new check methods
-- `ecospheric_harness/intents.py` — (no changes beyond Slice 2.1)
-- `tests/test_preflight.py` — new test cases
+- `ecospheric_harness/intents.py` — replace `PreflightResult` dataclass with new `Resolution` enum + structured result
+- `ecospheric_harness/preflight.py` — whole-file rewrite: migrate 3 existing checks, add 8 new checks, add `_resolve_secondary_input()` for file-path header reads, add pipeline `run_all_checks()` method
+- `ecospheric_harness/orchestrator.py` — replace inline preflight blocks with `_run_preflight_checks()` call, add `warnings` list to turn-state, wire `MODEL_DISCRETION` warnings into turn-state
+- `tests/test_preflight.py` — update all existing tests for new API, add ~35-40 new test cases
+- `tests/test_orchestrator.py` — update tests that assert on preflight results
 
-**New checks (in priority order):**
+**Checks implemented (8 fully specified):**
 
-1. **`check_crs_agreement(command, input_artifact, params)`** — binary ops: both inputs same CRS?
-   - Detect binary ops: command has 2+ input params (e.g. `--input` + `--by`, `--overlay`, `--mask`)
-   - If second input is an artifact ID → resolve and compare CRS
-   - If second input is a file path → skip (can't inspect)
-   - Resolution: `BLOCK` if CRS mismatch, `MODEL_DISCRETION` if can't determine
+1. **CRS agreement** (binary ops) — both inputs same CRS. File-path header reads via rasterio/fiona. BLOCK on mismatch.
+2. **Extent intersection** (binary ops) — inputs overlap. BLOCK on zero intersection.
+3. **Unit awareness** — geographic CRS + distance op. AUTO_FIX (treated as BLOCK with "suggested reproject" message in Phase 2).
+4. **Extent containment** — requested bounds within input. BLOCK if bounds exceed input.
+5. **CRS validity** — target CRS exists. BLOCK if `pyproj.CRS()` raises.
+6. **Planar CRS** (existing, refactored) — BLOCK if geographic CRS on planar-requiring command.
+7. **Resolution sanity** — within 3 orders of magnitude. MODEL_DISCRETION if ratio > 1000×. Handles unit normalization (both resolutions converted to meters before comparison).
+8. **Geometry validity** (vector only) — `shapely.is_valid` on sample (first 100 features). MODEL_DISCRETION if >10% invalid.
 
-2. **`check_extent_intersection(command, input_artifact, params)`** — binary ops: do inputs overlap?
-   - Compare bbox of both inputs
-   - Resolution: `BLOCK` if zero intersection
+Plus existing checks migrated to new API:
+9. **SSRF** (existing, refactored) — BLOCK on internal/metadata IP.
+10. **Disk** (existing, refactored) — BLOCK on insufficient disk.
 
-3. **`check_unit_awareness(command, input_artifact)`** — geographic CRS + linear distance = auto-fix
-   - If command requires planar CRS (already checked by `check_planar_crs`) AND input is geographic
-   - Resolution: `AUTO_FIX` with diagnostics: `{"suggested_crs": "EPSG:3857", "input_crs": "..."}`
-   - (For now, this will be BLOCK with a message — auto-fix implementation is Slice 2.4)
+**Checks 11-14 deferred to Phase 4** (see Slice 2.5 below):
+- Band validity, categorical resampling guard, datum transformation check, NoData awareness, pixel alignment
 
-4. **`check_extent_containment(command, input_artifact, params)`** — requested bounds within input?
-   - If params contain `bbox` or `bounds`, check it's within input bbox
-   - Resolution: `BLOCK` if bounds exceed input extent
+These are explicitly **cut from Phase 2**, not bundled as an afterthought. They require deeper integration with ESE command semantics and are better suited to Phase 4 hardening where command metadata is richer.
 
-5. **`check_crs_validity(command, params)`** — target CRS exists?
-   - If params contain `--output-crs` or `--target-crs`, validate with `pyproj.CRS()`
-   - Resolution: `BLOCK` if invalid
+**Turn-state changes:**
 
-6. **`check_resolution_sanity(command, input_artifact, params)`** — within 3 orders of magnitude?
-   - If params contain `--resolution` and input has resolution in envelope
-   - Resolution: `MODEL_DISCRETION` if ratio > 1000× (warn but allow)
+```python
+turn: dict[str, Any] = {
+    # ... existing fields ...
+    "warnings": [],  # NEW: list of {check, message} for MODEL_DISCRETION results
+}
+```
 
-7. **`check_geometry_validity(command, input_artifact)`** — valid geometries?
-   - Only for vector inputs. Use `shapely.is_valid` on a sample (first 100 features)
-   - Resolution: `MODEL_DISCRETION` if >10% invalid (warn)
+**Tests:**
+- Update ~15 existing preflight tests for new API (PreflightResult fields changed)
+- ~35-40 new tests: each check (pass/fail/skip), file-path header reads, pipeline ordering, warnings surfacing
+- ~5 orchestrator tests updated for warnings in turn-state
 
-8. **`check_pixel_alignment(command, input_artifact, params)`** — raster algebra alignment
-   - Only for raster algebra ops (map algebra, overlay)
-   - Check both inputs have same CRS, resolution, origin
-   - Resolution: `BLOCK` if misaligned
-
-9-14: Path confinement + SSRF already exist. Band validity, categorical resampling, datum transformation, NoData awareness → `MODEL_DISCRETION` level (warn but don't block — these are subtle and we don't want false positives early).
-
-**Orchestrator integration:**
-- New `_run_preflight_checks()` method that runs all applicable checks and collects results
-- Runs checks in priority order
-- First `BLOCK` stops and returns error to model
-- `MODEL_DISCRETION` results are surfaced in turn state as warnings
-
-**Tests:** ~30-40 new test cases covering each check (pass/fail/skip scenarios).
-
-**Estimated:** ~1 file heavily modified, ~40 new tests. Medium-large slice.
+**Estimated:** 3 files rewritten, 2 test files updated/extended, ~40-45 new/updated tests. Large slice.
 
 ---
 
-### Slice 2.3 — Output validation
+### Slice 2.2 — Output Validation
+
+**Sequential after 2.1.** Both touch `_handle_operation`, so no parallelism.
 
 **Files:**
 - `ecospheric_harness/output_validator.py` — NEW
-- `ecospheric_harness/orchestrator.py` — call validator after execution
+- `ecospheric_harness/orchestrator.py` — add post-execution validation call, add orphan cleanup on failure
+- `ecospheric_harness/workspace.py` — add `cleanup_unregistered(path)` method
 - `tests/test_output_validator.py` — NEW
+- `tests/test_workspace.py` — new test cases for cleanup_unregistered
 
-**Checks after successful execution:**
-
-```python
-@dataclass
-class OutputValidationResult:
-    ok: bool
-    checks: list[dict]  # [{check: "...", passed: bool, message: "..."}]
-    error: str = ""
-
-class OutputValidator:
-    def validate(self, output_path: Path, envelope: dict, command: CommandDescriptor,
-                 input_artifact: ArtifactRecord | None, params: dict) -> OutputValidationResult:
-        ...
-```
-
-Checks:
+**Checks:**
 1. File exists and non-empty
-2. Raster: open with rasterio, check `width > 1 or height > 1`, CRS set, NoData set
-3. Vector: open with geopandas, `len(gdf) > 0`, all geometries valid, CRS set
-4. Output-vs-intent: 
+2. Raster: `rasterio.open()` → dimensions > 1×1, CRS set, NoData set (if applicable)
+3. Vector: `gpd.read_file()` → feature count > 0, all geometries valid, CRS set
+4. Output-vs-intent:
    - Reproject: output CRS == requested CRS
    - Clip: output extent ⊆ clip bounds
    - Buffer: output extent ⊇ input extent
    - Search: results non-empty (already checked)
-5. Failed validation → step marked `failed` (not `success`), diagnostics in step record
+5. Failed validation → step marked `validation_failed`, orphan file cleaned up via `workspace.cleanup_unregistered()`
 
 **Orchestrator integration:**
-- After executor returns success, before registering artifact, run output validator
-- If validation fails: step recorded as `validation_failed`, error message to model
-- If validation passes: normal artifact registration
+```python
+# After executor returns success, before artifact registration:
+validation = self._output_validator.validate(
+    output_path=exec_result.output_path,
+    envelope=exec_result.envelope,
+    command=resolved.command,
+    input_artifact=input_artifact,
+    params=resolved.params,
+)
+if not validation.ok:
+    self._workspace.cleanup_unregistered(exec_result.output_path)
+    # record step as validation_failed, return error turn
+```
 
-**Tests:** ~20 new test cases (mock rasterio/geopandas, test each check, test pass/fail).
+**Tests:** ~20 new test cases (mock rasterio/geopandas, each check pass/fail, orphan cleanup verification).
 
-**Estimated:** 2 new files, 1 modified, ~20 tests. Medium slice.
+**Estimated:** 2 new files, 2 modified, ~20 new tests. Medium slice.
 
 ---
 
-### Slice 2.4 — Memory budget preflight + command classification
+### Slice 2.3 — Memory Budget + Command Classification
+
+**Sequential after 2.2.** Can potentially overlap with 2.4 if needed.
 
 **Files:**
-- `ecospheric_harness/command_profile.py` — NEW (command memory classification table)
-- `ecospheric_harness/preflight.py` — add `check_memory_budget()`
-- `ecospheric_harness/config.py` — add `memory_limit_mb` field
+- `ecospheric_harness/command_profile.py` — NEW (classification table keyed by `(command_name, data_type)`)
+- `ecospheric_harness/preflight.py` — add `check_memory_budget()` to the pipeline
+- `ecospheric_harness/config.py` — add `memory_limit_mb: int | None` field + env var
 - `ecospheric_harness/__main__.py` — add `--memory-limit-mb` CLI flag
 - `tests/test_command_profile.py` — NEW
-- `tests/test_preflight.py` — new test cases
+- `tests/test_preflight.py` — new test cases for memory budget check
 
 **Command classification:**
 
@@ -230,30 +260,37 @@ Checks:
 @dataclass
 class CommandProfile:
     memory_class: str  # "streaming", "full_load", "depends"
-    memory_multiplier: float  # peak RSS ≈ N × input_bytes
+    memory_multiplier: float
 
-# Classification by command name pattern
-COMMAND_PROFILES: dict[str, CommandProfile] = {
-    "reproject": CommandProfile("full_load", 3.0),
-    "warp": CommandProfile("full_load", 3.0),
-    "buffer": CommandProfile("full_load", 2.0),
-    "clip": CommandProfile("full_load", 2.0),
-    "dissolve": CommandProfile("full_load", 2.0),
-    "slope": CommandProfile("streaming", 1.5),
-    "aspect": CommandProfile("streaming", 1.5),
-    "hillshade": CommandProfile("streaming", 1.5),
-    "contour": CommandProfile("streaming", 2.0),
-    "rasterize": CommandProfile("full_load", 3.0),
-    "info": CommandProfile("streaming", 1.0),
-    "describe": CommandProfile("streaming", 1.0),
-    # ... etc
+# Keyed by (command_name, data_type) — avoids clip-raster vs clip-vector confusion
+COMMAND_PROFILES: dict[tuple[str, str], CommandProfile] = {
+    ("reproject", "raster"): CommandProfile("full_load", 3.0),
+    ("reproject", "vector"): CommandProfile("full_load", 2.0),
+    ("clip", "raster"): CommandProfile("streaming", 1.5),
+    ("clip", "vector"): CommandProfile("full_load", 2.0),
+    ("buffer", "vector"): CommandProfile("full_load", 2.0),
+    ("dissolve", "vector"): CommandProfile("full_load", 2.0),
+    ("slope", "raster"): CommandProfile("streaming", 1.5),
+    ("aspect", "raster"): CommandProfile("streaming", 1.5),
+    ("hillshade", "raster"): CommandProfile("streaming", 1.5),
+    ("contour", "raster"): CommandProfile("streaming", 2.0),
+    ("rasterize", "raster"): CommandProfile("full_load", 3.0),
+    ("info", "raster"): CommandProfile("streaming", 1.0),
+    ("info", "vector"): CommandProfile("streaming", 1.0),
+    ("describe", "raster"): CommandProfile("streaming", 1.0),
+    # ... to be enumerated against ESE's 96 commands during implementation
 }
 DEFAULT_PROFILE = CommandProfile("full_load", 3.0)
 ```
 
 **Memory estimate:**
-- Raster: `width × height × bands × dtype_size × multiplier` (from envelope `data.width`, `data.height`, `data.bands`, `data.dtype`)
-- Vector/pointcloud: `file_size_bytes × multiplier`
+- Raster: `width × height × bands × dtype_size × multiplier`
+  - `dtype_size` from `data.dtype` in envelope (e.g. "float32" → 4 bytes). Default 4 if absent.
+  - `width`, `height`, `bands` from envelope `data.width`, `data.height`, `data.bands`
+- Vector: `feature_count × 500 × multiplier` (500 bytes/feature empirical default for polygons)
+  - If `feature_count` absent: `file_size_bytes × 5` (GeoParquet compression factor)
+  - Flagged as `confidence: "low"` in diagnostics
+- Pointcloud: `file_size_bytes × 3`
 - If estimate > `memory_limit_mb * 1024 * 1024` → BLOCK
 
 **Config:**
@@ -261,89 +298,98 @@ DEFAULT_PROFILE = CommandProfile("full_load", 3.0)
 - `HARNESS_MEMORY_LIMIT_MB` env var
 - `--memory-limit-mb` CLI flag
 
-**Tests:** ~15 new test cases (profile lookup, estimate calculation, block/pass scenarios).
+**Tests:** ~15 new test cases (profile lookup by tuple, estimate calculation for raster/vector/pointcloud, block/pass, missing metadata fallback, confidence flagging).
 
 **Estimated:** 2 new files, 3 modified, ~15 tests. Medium slice.
 
 ---
 
-### Slice 2.5 — WorkspaceManager extensions
+### Slice 2.4 — WorkspaceManager Extensions
+
+**Independent of 2.2/2.3** (touches workspace.py only, no orchestrator changes).
 
 **Files:**
 - `ecospheric_harness/workspace.py` — session cleanup, cancellation cleanup
-- `ecospheric_harness/config.py` — `session_ttl_days` field
+- `ecospheric_harness/config.py` — `session_ttl_days: float = 7.0` field
 - `ecospheric_harness/__main__.py` — `--session-ttl-days` CLI flag
-- `tests/test_workspace.py` — new test cases (extend existing)
+- `tests/test_workspace.py` — new test cases
 
 **Changes:**
 
-1. **Session cleanup:** `WorkspaceManager.cleanup_old_sessions(ttl_days: int)` — walks `workspace_root`, removes session dirs older than TTL. Called at harness startup. Default 7 days.
+1. **Session cleanup:** `WorkspaceManager.cleanup_old_sessions(ttl_days: float)` — walks `workspace_root`, removes session dirs whose newest file mtime > ttl_days old. Called at harness startup. Default 7 days.
 
-2. **Cancellation cleanup:** `WorkspaceManager.cleanup_partial(session_dir: Path)` — removes unregistered temp files from a cancelled step. Called when a step is cancelled (Phase 3 will add cancellation; for now, just the method exists).
+2. **Cancellation cleanup:** `WorkspaceManager.cleanup_unregistered(path: Path)` — already added in Slice 2.2 for output validation. This slice adds `cleanup_cancelled_step(session_dir: Path, step_number: int)` for Phase 3's cancellation flow. For now, just the method exists — not wired to any caller.
 
-3. **Memory accounting:** `WorkspaceManager.estimate_rss(artifact: ArtifactRecord, profile: CommandProfile) -> int` — convenience method wrapping the estimate logic from Slice 2.4. Lives here so both preflight and the executor can use it.
+3. **Memory accounting:** `WorkspaceManager.estimate_rss(artifact: ArtifactRecord, profile: CommandProfile) -> int` — convenience method wrapping the estimate logic from 2.3. Lives here so both preflight and executor can use it.
 
-**Tests:** ~10 new test cases (old session cleanup, partial cleanup, RSS estimate).
+**Tests:** ~10 new test cases (old session cleanup, partial cleanup, RSS estimate, TTL boundary).
 
 **Estimated:** 1 file modified, 2 modified, ~10 tests. Small slice.
 
 ---
 
-### Slice 2.6 — COG output default + integration test
+### Slice 2.5 — COG Default + Integration Tests + Eval Fixtures
+
+**Depends on 2.1 + 2.2.** Final integration slice.
 
 **Files:**
 - `ecospheric_harness/orchestrator.py` — set COG as default for raster-producing commands
 - `ecospheric_harness/config.py` — `default_raster_format: str = "cog"`
-- `tests/test_integration.py` — new integration test
-- `ecospheric_harness/eval/cases.py` — add spatial validation eval fixtures
+- `tests/test_integration.py` — new integration tests
+- `ecospheric_harness/eval/cases.py` — new eval fixtures
 
 **Changes:**
 
-1. **COG default:** When a raster-producing command doesn't specify output format, default to COG. The orchestrator injects `--format cog` (or equivalent) into params if not specified.
+1. **COG default:** When a raster-producing command doesn't specify output format, orchestrator injects `--format cog` (or equivalent) into params if not specified.
 
-2. **Integration test:** Full pipeline that exercises preflight checks + output validation:
+2. **Integration tests:**
    - Search OSM → buffer → clip with mismatched CRS (preflight BLOCK)
-   - Search OSM → reproject → buffer (preflight AUTO_FIX for geographic CRS)
-   - Search OSM → buffer → validate output (output validation passes)
+   - Search OSM → reproject → buffer (preflight passes, output validation passes)
+   - Search OSM → buffer with file-path mask that doesn't exist (header read fails → MODEL_DISCRETION warning)
+   - Search OSM → reproject to invalid CRS (preflight BLOCK on CRS validity)
+   - Output validation failure: mock produces 1×1 raster → step marked validation_failed, orphan cleaned up
 
-3. **Eval fixtures:** 5-10 new fixtures testing preflight and output validation scenarios.
+3. **Eval fixtures:** 5 new fixtures testing preflight and output validation scenarios.
 
-**Estimated:** 2 files modified, 1 file extended, ~10 new tests/fixtures. Small slice.
+4. **Checks 11-14 explicitly deferred:** Band validity, categorical resampling, datum transformation, NoData awareness, pixel alignment → Phase 4. Documented in non-goals.
+
+**Tests:** ~10 new tests + 5 eval fixtures. Small slice.
 
 ---
 
-## Slice Dependency Graph
+## Revised Slice Dependency Graph
 
 ```
-2.1 (PreflightResult upgrade)
- ├── 2.2 (Spatial preflight checks)
- │    └── 2.4 (Memory budget — can run in parallel with 2.3)
- ├── 2.3 (Output validation — independent of 2.2)
- └── 2.5 (WorkspaceManager extensions — independent of 2.2/2.3)
-      └── 2.6 (COG + integration — depends on 2.2 + 2.3)
+2.1 (Preflight foundation + checks 1-8)
+ └── 2.2 (Output validation — sequential, shared orchestrator region)
+      ├── 2.3 (Memory budget — can overlap with 2.4)
+      └── 2.4 (WorkspaceManager extensions — independent of 2.3)
+           └── 2.5 (COG + integration — depends on 2.1 + 2.2)
 ```
 
-**Recommended order:** 2.1 → (2.2 + 2.3 parallel) → 2.4 → 2.5 → 2.6
+**Strict sequential:** 2.1 → 2.2 → (2.3 ∥ 2.4) → 2.5
 
-Or: 2.1 → 2.2 → 2.3 → 2.4 → 2.5 → 2.6 (sequential, simpler)
+No parallelism on orchestrator-touching slices. 2.3 and 2.4 can overlap since 2.3 touches preflight/config/CLI and 2.4 touches workspace/config/CLI (config.py merge risk is low — different fields).
 
-## Total Estimates
+## Total Estimates (Revised)
 
-| Slice | New files | Modified files | New tests | Effort |
-|-------|-----------|----------------|-----------|--------|
-| 2.1 | 0 | 3 | 0 (update existing) | Small |
-| 2.2 | 0 | 1 | ~35-40 | Large |
-| 2.3 | 2 | 1 | ~20 | Medium |
-| 2.4 | 2 | 3 | ~15 | Medium |
-| 2.5 | 0 | 3 | ~10 | Small |
-| 2.6 | 0 | 3 | ~10 | Small |
-| **Total** | **4** | **14** | **~90-95** | |
+| Slice | New files | Modified files | New/updated tests | Effort |
+|-------|-----------|----------------|-------------------|--------|
+| 2.1 | 0 | 3 (+2 test) | ~40-45 | Large |
+| 2.2 | 2 | 2 (+1 test) | ~20 | Medium |
+| 2.3 | 2 | 3 (+1 test) | ~15 | Medium |
+| 2.4 | 0 | 3 (+1 test) | ~10 | Small |
+| 2.5 | 0 | 3 (+1 test) | ~10 + 5 fixtures | Small |
+| **Total** | **4** | **13** | **~95-100** | |
 
 ## Non-goals for Phase 2
 
-- No auto-fix implementation (AUTO_FIX results as BLOCK with message for now — full auto-fix is Phase 4)
-- No ASK_USER UI (Phase 3)
-- No cancellation wiring (Phase 3 — just the cleanup method)
-- No distributed processing or cloud I/O
-- No automatic tiling of oversized rasters
-- No `RLIMIT_CPU` (per ROADMAP — too risky for GDAL multithreaded ops)
+- **No auto-fix implementation.** AUTO_FIX results are BLOCK with "suggested reproject" message. Full auto-fix is Phase 4.
+- **No ASK_USER UI.** ASK_USER treated as BLOCK. UI is Phase 3.
+- **No cancellation wiring.** `cleanup_cancelled_step()` method exists but no caller. Phase 3 wires it.
+- **No checks 11-14.** Band validity, categorical resampling guard, datum transformation, NoData awareness, pixel alignment → explicitly deferred to Phase 4. These need richer ESE command metadata than what's currently available.
+- **No distributed processing or cloud I/O.**
+- **No automatic tiling of oversized rasters.**
+- **No `RLIMIT_CPU`.** Per ROADMAP — too risky for GDAL multithreaded ops.
+- **No memory multiplier calibration.** Initial heuristics only. Phase 4 instruments actual peak RSS and calibrates.
+- **No `ArtifactRecord` field for preflight warnings.** Warnings surface in turn-state only. Storing against artifacts for provenance is a future enhancement.
