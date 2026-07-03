@@ -77,7 +77,7 @@ class SubprocessHardener:
             'secret=[REDACTED]',
         ),
         # Absolute home paths
-        (rf'(?:{re.escape(str(Path.home()))})[/\S]*', '~[REDACTED]'),
+        (rf'(?:{re.escape(str(Path.home()))})[A-Za-z0-9_\-./]*', '~[REDACTED]'),
     ]
 
     def __init__(self, limits: SubprocessLimits | None = None) -> None:
