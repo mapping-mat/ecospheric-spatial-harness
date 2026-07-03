@@ -162,6 +162,28 @@ class WorkspaceManager:
         self._bytes_used -= size
         return size
 
+    def cleanup_unregistered(self, path: Path) -> bool:
+        """Delete an unregistered temp/output file. Returns True if deleted.
+
+        Used for cleaning up output files from failed validation or
+        cancelled steps.  Only deletes the file if it's within the
+        workspace root (path confinement).
+        """
+        try:
+            canonical = Path(os.path.realpath(str(path)))
+            # Check confinement against workspace_root (broader than session_dir)
+            # so that output files created in nested subdirs can still be cleaned.
+            try:
+                canonical.relative_to(self._workspace_root.resolve())
+            except ValueError:
+                return False
+            if canonical.exists():
+                canonical.unlink()
+                return True
+        except OSError:
+            return False
+        return False
+
     def check_disk_available(self, estimated_bytes: int = 0) -> bool:
         """Check if estimated_bytes fit within the disk limit."""
         return self._bytes_used + estimated_bytes < self._disk_limit_bytes

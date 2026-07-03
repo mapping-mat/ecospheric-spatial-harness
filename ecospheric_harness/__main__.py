@@ -25,6 +25,7 @@ from ecospheric_harness.intents import (
 )
 from ecospheric_harness.menu import available_intents
 from ecospheric_harness.orchestrator import Orchestrator
+from ecospheric_harness.output_validator import OutputValidator
 from ecospheric_harness.preflight import PreflightChecker
 from ecospheric_harness.providers.base import ModelProvider, ProviderError
 from ecospheric_harness.providers.openrouter import OpenRouterProvider
@@ -171,6 +172,7 @@ class Harness:
             self._provider = provider
 
         # Orchestrator shares the corrections' step list
+        self._output_validator = OutputValidator()
         self._orchestrator = Orchestrator(
             config=self._config,
             registry=ToolRegistry(),
@@ -183,6 +185,7 @@ class Harness:
             catalog=self._catalog,
             workspace=self._workspace,
             provider=self._provider,
+            output_validator=self._output_validator,
         )
 
     # -- public methods ----------------------------------------------------

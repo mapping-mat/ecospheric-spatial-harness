@@ -12,6 +12,7 @@ from typing import Any
 import httpx  # kept for backward-compat with test patching (see _call_model)
 
 from ecospheric_harness.artifact_registry import ArtifactRecord, ArtifactRegistry
+from ecospheric_harness.output_validator import OutputValidator
 from ecospheric_harness.params import normalize_params
 from ecospheric_harness.config import HarnessConfig
 from ecospheric_harness.corrections import CorrectionHandler
@@ -129,6 +130,7 @@ class Orchestrator:
         catalog: list[IntentEntry],
         workspace: WorkspaceManager,
         provider: ModelProvider | None = None,
+        output_validator: OutputValidator | None = None,
     ) -> None:
         self._config = config
         self._tool_registry = registry
@@ -141,6 +143,7 @@ class Orchestrator:
         self._catalog = catalog
         self._workspace = workspace
         self._provider = provider
+        self._output_validator = output_validator or OutputValidator()
 
         self._steps: list[StepRecord] = []
         self._failed_redo_count: int = 0
@@ -468,6 +471,35 @@ class Orchestrator:
                 duration_ms=duration_ms,
             ))
             return None, self._make_error_turn(error_msg, intent)
+
+        # h.5. Output validation.
+        validation = self._output_validator.validate(
+            output_path=exec_result.output_path,
+            envelope=exec_result.envelope,
+            command=resolved.command,
+            input_artifact=input_artifact,
+            params=resolved.params,
+        )
+        if not validation.ok:
+            # Clean up orphan output file
+            self._workspace.cleanup_unregistered(exec_result.output_path)
+            self._steps.append(StepRecord(
+                step_number=len(self._steps) + 1,
+                tool=resolved.tool.name,
+                command=resolved.command.name,
+                tool_ref=resolved.tool,
+                command_ref=resolved.command,
+                intent=intent,
+                params=resolved.params,
+                status="validation_failed",
+                envelope=exec_result.envelope,
+                output_path=exec_result.output_path,
+                duration_ms=duration_ms,
+            ))
+            return None, self._make_error_turn(
+                f"Output validation failed: {validation.error}. Partial output cleaned up.",
+                intent,
+            )
 
         # i. Success — register artifact and build step record.
         step_number = len(self._steps) + 1
