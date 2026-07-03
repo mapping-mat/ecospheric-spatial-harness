@@ -111,6 +111,99 @@ class TestUniformOptionPlacement:
 
 
 # ---------------------------------------------------------------------------
+# Output path extension bug fix — output_path suffix must match a format
+# ESE's _detect_fmt recognizes, not the workspace default ".bin".
+# ---------------------------------------------------------------------------
+
+
+class TestOutputPathExtension:
+    """Output path suffix is derived from input artifact format or output_format param."""
+
+    @patch("ecospheric_harness.executor.subprocess.run")
+    def test_output_path_uses_parquet_extension_for_geoparquet_input(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        mock_run.return_value = _mock_completed(_success_envelope("transform"))
+
+        tool = _make_tool("ese")
+        cmd = _make_command("proj transform", [_make_param("input", "string", True)])
+        artifact = Artifact(
+            path=tmp_path / "input.parquet",
+            envelope={"status": "success"},
+            format="geoparquet",
+            data_type="vector",
+        )
+
+        executor = ToolExecutor()
+        executor.execute(tool, cmd, {}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
+
+        args = mock_run.call_args[0][0]
+        output_path = args[args.index("--output") + 1]
+        assert output_path.endswith(".parquet")
+
+    @patch("ecospheric_harness.executor.subprocess.run")
+    def test_output_path_uses_geojson_for_convert_output_format(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        mock_run.return_value = _mock_completed(_success_envelope("convert"))
+
+        tool = _make_tool("ese")
+        cmd = _make_command("convert", [_make_param("input", "string", True)])
+        artifact = _make_artifact(tmp_path / "input.tif")
+
+        executor = ToolExecutor()
+        executor.execute(
+            tool,
+            cmd,
+            {"output_format": "geojson"},
+            artifact,
+            WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000),
+        )
+
+        args = mock_run.call_args[0][0]
+        output_path = args[args.index("--output") + 1]
+        assert output_path.endswith(".geojson")
+
+    @patch("ecospheric_harness.executor.subprocess.run")
+    def test_output_path_defaults_to_bin_when_no_input_artifact(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        mock_run.return_value = _mock_completed(_success_envelope("search"))
+
+        tool = _make_tool("ese")
+        cmd = _make_command("search", [])
+
+        executor = ToolExecutor()
+        executor.execute(tool, cmd, {}, None, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
+
+        args = mock_run.call_args[0][0]
+        output_path = args[args.index("--output") + 1]
+        assert output_path.endswith(".bin")
+
+    @patch("ecospheric_harness.executor.subprocess.run")
+    def test_output_path_unknown_format_falls_back_to_bin(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        mock_run.return_value = _mock_completed(_success_envelope("clip"))
+
+        tool = _make_tool("ese")
+        cmd = _make_command("clip", [_make_param("input", "string", True)])
+        artifact = Artifact(
+            path=tmp_path / "input.xyz",
+            envelope={"status": "success"},
+            format="unknown_format",
+            data_type="raster",
+        )
+
+        executor = ToolExecutor()
+        executor.execute(tool, cmd, {}, artifact, WorkspaceManager(tmp_path, disk_limit_bytes=10_000_000))
+
+        args = mock_run.call_args[0][0]
+        output_path = args[args.index("--output") + 1]
+        assert output_path.endswith(".bin")
+
+
+# ---------------------------------------------------------------------------
 # AC28: Command name tokenization
 # ---------------------------------------------------------------------------
 
@@ -542,7 +635,7 @@ class TestEnvelopeHandling:
         assert result.envelope == envelope
         assert result.returncode == 0
         assert result.output_path.name.startswith("step_")
-        assert result.output_path.name.endswith(".bin")
+        assert result.output_path.name.endswith(".tif")
         assert result.output_path.parent.parent == tmp_path
 
 

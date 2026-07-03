@@ -27,6 +27,18 @@ _GEO_EXTENSIONS = frozenset({
     ".laz", ".las", ".ply", ".gdb", ".json",
 })
 
+# Maps ETP/artifact format names to the file extension ESE's _detect_fmt expects.
+FORMAT_TO_EXT: dict[str, str] = {
+    "geojson": ".geojson",
+    "geoparquet": ".parquet",
+    "gpkg": ".gpkg",
+    "geopackage": ".gpkg",
+    "geotiff": ".tif",
+    "cog": ".tif",
+    "shp": ".shp",
+    "kml": ".kml",
+}
+
 
 def serialize_params(
     params: dict[str, Any],
@@ -137,7 +149,17 @@ class ToolExecutor:
                 output_path=workspace.create_temp_path(),
             )
 
-        output_path = workspace.create_temp_path()
+        # Determine output file extension from target format or input artifact
+        suffix = ".bin"
+        # Check if params specify a target output format (e.g. convert command)
+        output_fmt = params.get("output_format") or params.get("format")
+        if output_fmt:
+            suffix = FORMAT_TO_EXT.get(str(output_fmt), ".bin")
+        elif input_artifact is not None:
+            fmt = getattr(input_artifact, "format", None)
+            if fmt:
+                suffix = FORMAT_TO_EXT.get(str(fmt), ".bin")
+        output_path = workspace.create_temp_path(suffix=suffix)
 
         args: list[str] = [tool.binary]
         args.extend(command.name.split())  # tokenize "raster clip" → ["raster", "clip"]
