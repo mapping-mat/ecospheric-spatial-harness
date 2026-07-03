@@ -196,6 +196,11 @@ class Harness:
             default_raster_format=default_raster_format,
         )
 
+        # Clean up orphaned files in session dir (files not in registry).
+        # Must happen after the registry is loaded (via ArtifactRegistry.__init__)
+        # and the orchestrator is ready.
+        self._artifact_registry.cleanup_orphans()
+
     # -- public methods ----------------------------------------------------
 
     def run(self, prompt: str) -> PipelineResult:
@@ -209,6 +214,13 @@ class Harness:
     def redo(self, params: dict[str, Any]) -> CorrectionResult:
         """Redo the last step with new parameters."""
         return self._corrections.redo(params)
+
+    def save_state(self) -> None:
+        """Persist the current registry state to disk.
+
+        Delegates to the artifact registry via the orchestrator.
+        """
+        self._orchestrator.save_state()
 
     # -- properties --------------------------------------------------------
 

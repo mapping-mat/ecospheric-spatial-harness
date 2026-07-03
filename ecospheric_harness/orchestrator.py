@@ -302,6 +302,7 @@ class Orchestrator:
         if intent == "undo":
             self._failed_redo_count = 0
             self._corrections.undo()
+            self._artifact_registry.persist()
             return
 
         # redo
@@ -310,6 +311,14 @@ class Orchestrator:
             self._failed_redo_count += 1
         else:
             self._failed_redo_count = 0
+            self._artifact_registry.persist()
+
+    def save_state(self) -> None:
+        """Persist the current registry state to disk.
+
+        Delegates to the artifact registry's :meth:`persist`.
+        """
+        self._artifact_registry.persist()
 
     def _handle_operation(
         self, intent: str, params: dict[str, Any],
@@ -526,6 +535,9 @@ class Orchestrator:
             #     input_artifact.artifact_id if input_artifact else None,
             #     new_artifact.artifact_id,
             # )
+
+            # Persist registry state to disk after successful registration.
+            self._artifact_registry.persist()
 
         self._steps.append(StepRecord(
             step_number=step_number,
