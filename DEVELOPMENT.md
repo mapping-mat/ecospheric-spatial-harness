@@ -1,6 +1,6 @@
 # Ecospheric Spatial Harness — Development Tracker
 
-## Current Phase: 2.3 — Memory Budget (NEXT)
+## Current Phase: 2.5 — COG Default + Integration Tests (NEXT)
 
 ## Phase History
 
@@ -47,8 +47,8 @@ See `PHASE2_SCOPE.md` for full breakdown (revised after Sonnet 5 review). 5 slic
 |-------|-------------|--------|--------------|
 | 2.1 | Preflight foundation + spatial checks 1-8 + pipeline pattern + warnings | Large | None |
 | 2.2 | Output validation + orphan cleanup | ✅ | 2026-07-03 | 491 | `0e73cfc` |
-| 2.3 | Memory budget + command classification (tuple-keyed) | Medium | 2.2 |
-| 2.4 | WorkspaceManager extensions (session TTL, cancellation method) | Small | 2.2 |
+| 2.3 | Memory budget + command classification (tuple-keyed) | ✅ | 2026-07-03 | 522 | `a489f01` |
+| 2.4 | WorkspaceManager extensions (session TTL, cancellation method) | ✅ | 2026-07-03 | 522 | `a489f01` |
 | 2.5 | COG default + integration tests + eval fixtures | Small | 2.1, 2.2 |
 
 Strict sequential: 2.1 → 2.2 → (2.3 ∥ 2.4) → 2.5
