@@ -152,9 +152,18 @@ def create_app(harness_kwargs: dict[str, Any] | None = None) -> FastAPI:
         if data_type == "vector":
             # Read via geopandas and return as GeoJSON
             import geopandas as gpd
-            # Use read_parquet for parquet files to avoid libduckdb dependency
-            # in pyogrio's read_file path
-            if path.suffix in (".parquet", ".geoparquet"):
+            # Sniff file format by magic bytes to avoid pyogrio/libduckdb issues.
+            # Files may have .bin extension when format detection fails in executor.
+            is_parquet = False
+            try:
+                with open(path, "rb") as f:
+                    magic = f.read(4)
+                if magic == b"PAR1":
+                    is_parquet = True
+            except OSError:
+                pass
+
+            if is_parquet or path.suffix in (".parquet", ".geoparquet"):
                 gdf = gpd.read_parquet(path)
             else:
                 gdf = gpd.read_file(path)
